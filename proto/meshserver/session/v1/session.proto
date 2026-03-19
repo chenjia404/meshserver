@@ -1,0 +1,484 @@
+syntax = "proto3";
+
+package meshserver.session.v1;
+
+option go_package = "meshserver/internal/gen/proto/meshserver/session/v1;sessionv1";
+
+message Envelope {
+  uint32 version = 1;
+  MsgType msg_type = 2;
+  string request_id = 3;
+  uint64 timestamp_ms = 4;
+  bytes body = 5;
+}
+
+enum MsgType {
+  MSG_TYPE_UNSPECIFIED = 0;
+
+  HELLO = 1;
+  AUTH_CHALLENGE = 2;
+  AUTH_PROVE = 3;
+  AUTH_RESULT = 4;
+
+  PING = 10;
+  PONG = 11;
+  ERROR = 12;
+
+  LIST_SPACES_REQ = 20;
+  LIST_SPACES_RESP = 21;
+
+  LIST_CHANNELS_REQ = 22;
+  LIST_CHANNELS_RESP = 23;
+
+  SUBSCRIBE_CHANNEL_REQ = 24;
+  SUBSCRIBE_CHANNEL_RESP = 25;
+  UNSUBSCRIBE_CHANNEL_REQ = 26;
+  UNSUBSCRIBE_CHANNEL_RESP = 27;
+  CREATE_GROUP_REQ = 28;
+  CREATE_GROUP_RESP = 29;
+
+  SEND_MESSAGE_REQ = 30;
+  SEND_MESSAGE_ACK = 31;
+  MESSAGE_EVENT = 32;
+
+  CHANNEL_DELIVER_ACK = 33;
+  CHANNEL_READ_UPDATE = 34;
+
+  SYNC_CHANNEL_REQ = 35;
+  SYNC_CHANNEL_RESP = 36;
+  CREATE_CHANNEL_REQ = 37;
+  CREATE_CHANNEL_RESP = 38;
+  ADMIN_SET_SPACE_MEMBER_ROLE_REQ = 39;
+  ADMIN_SET_SPACE_MEMBER_ROLE_RESP = 40;
+  ADMIN_SET_SPACE_CHANNEL_CREATION_REQ = 41;
+  ADMIN_SET_SPACE_CHANNEL_CREATION_RESP = 42;
+  JOIN_SPACE_REQ = 43;
+  JOIN_SPACE_RESP = 44;
+  INVITE_SPACE_MEMBER_REQ = 45;
+  INVITE_SPACE_MEMBER_RESP = 46;
+  KICK_SPACE_MEMBER_REQ = 47;
+  KICK_SPACE_MEMBER_RESP = 48;
+  BAN_SPACE_MEMBER_REQ = 49;
+  BAN_SPACE_MEMBER_RESP = 50;
+  LIST_SPACE_MEMBERS_REQ = 51;
+  LIST_SPACE_MEMBERS_RESP = 52;
+  UNBAN_SPACE_MEMBER_REQ = 53;
+  UNBAN_SPACE_MEMBER_RESP = 54;
+  CREATE_SPACE_REQ = 57;
+  CREATE_SPACE_RESP = 58;
+  GET_CREATE_SPACE_PERMISSIONS_REQ = 59;
+  GET_CREATE_SPACE_PERMISSIONS_RESP = 60;
+  GET_CREATE_GROUP_PERMISSIONS_REQ = 61;
+  GET_CREATE_GROUP_PERMISSIONS_RESP = 62;
+  GET_MEDIA_REQ = 63;
+  GET_MEDIA_RESP = 64;
+}
+
+enum Visibility {
+  VISIBILITY_UNSPECIFIED = 0;
+  PUBLIC = 1;
+  PRIVATE = 2;
+}
+
+enum ChannelType {
+  CHANNEL_TYPE_UNSPECIFIED = 0;
+  GROUP = 1;
+  BROADCAST = 2;
+}
+
+enum MessageType {
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+  TEXT = 1;
+  IMAGE = 2;
+  FILE = 3;
+  SYSTEM = 4;
+}
+
+enum MemberRole {
+  MEMBER_ROLE_UNSPECIFIED = 0;
+  OWNER = 1;
+  ADMIN = 2;
+  MEMBER = 3;
+  SUBSCRIBER = 4;
+}
+
+message Hello {
+  string client_peer_id = 1;
+  string client_agent = 2;
+  string protocol_version = 3;
+}
+
+message AuthChallenge {
+  string node_peer_id = 1;
+  bytes nonce = 2;
+  uint64 issued_at_ms = 3;
+  uint64 expires_at_ms = 4;
+  string session_hint = 5;
+}
+
+message AuthProve {
+  string client_peer_id = 1;
+  bytes nonce = 2;
+  uint64 issued_at_ms = 3;
+  uint64 expires_at_ms = 4;
+  bytes signature = 5;
+  bytes public_key = 6;
+}
+
+message AuthResult {
+  bool ok = 1;
+  string session_id = 2;
+  string user_id = 3;
+  string display_name = 4;
+  string message = 5;
+  repeated SpaceSummary spaces = 6;
+}
+
+message ErrorMsg {
+  uint32 code = 1;
+  string message = 2;
+}
+
+message Ping {
+  uint64 nonce = 1;
+}
+
+message Pong {
+  uint64 nonce = 1;
+}
+
+message SpaceSummary {
+  uint32 space_id = 1;
+  string name = 2;
+  string avatar_url = 3;
+  string description = 4;
+  Visibility visibility = 5;
+  uint32 member_count = 6;
+  bool allow_channel_creation = 7;
+}
+
+message ListSpacesReq {}
+
+message ListSpacesResp {
+  repeated SpaceSummary spaces = 1;
+}
+
+message ChannelSummary {
+  uint32 channel_id = 1;
+  uint32 space_id = 2;
+  ChannelType type = 3;
+  string name = 4;
+  string description = 5;
+  Visibility visibility = 6;
+  uint32 slow_mode_seconds = 7;
+  uint64 last_seq = 8;
+  uint32 member_count = 9;
+  bool can_view = 10;
+  bool can_send_message = 11;
+  bool can_send_image = 12;
+  bool can_send_file = 13;
+}
+
+message ListChannelsReq {
+  uint32 space_id = 1;
+}
+
+message ListChannelsResp {
+  uint32 space_id = 1;
+  repeated ChannelSummary channels = 2;
+}
+
+message SpaceMemberSummary {
+  uint64 member_id = 1;
+  string user_id = 2;
+  string display_name = 3;
+  string avatar_url = 4;
+  MemberRole role = 5;
+  string nickname = 6;
+  bool is_muted = 7;
+  bool is_banned = 8;
+  uint64 joined_at_ms = 9;
+  uint64 last_seen_at_ms = 10;
+}
+
+message ListSpaceMembersReq {
+  uint32 space_id = 1;
+  uint64 after_member_id = 2;
+  uint32 limit = 3;
+}
+
+message ListSpaceMembersResp {
+  uint32 space_id = 1;
+  repeated SpaceMemberSummary members = 2;
+  uint64 next_after_member_id = 3;
+  bool has_more = 4;
+}
+
+message UnbanSpaceMemberReq {
+  uint32 space_id = 1;
+  string target_user_id = 2;
+}
+
+message UnbanSpaceMemberResp {
+  bool ok = 1;
+  uint32 space_id = 2;
+  string target_user_id = 3;
+  SpaceSummary space = 4;
+  string message = 5;
+}
+
+message CreateSpaceReq {
+  string name = 1;
+  string description = 2;
+  Visibility visibility = 3;
+  bool allow_channel_creation = 4;
+}
+
+message CreateSpaceResp {
+  bool ok = 1;
+  uint32 space_id = 2;
+  SpaceSummary space = 3;
+  string message = 4;
+}
+
+message GetCreateSpacePermissionsReq {
+}
+
+message GetCreateSpacePermissionsResp {
+  bool ok = 1;
+  bool can_create_space = 2;
+  string message = 3;
+}
+
+message GetCreateGroupPermissionsReq {
+  uint32 space_id = 1;
+}
+
+message GetCreateGroupPermissionsResp {
+  bool ok = 1;
+  uint32 space_id = 2;
+  SpaceSummary space = 3;
+  MemberRole role = 4;
+  bool can_create_group = 5;
+  string message = 6;
+}
+
+message SubscribeChannelReq {
+  uint32 channel_id = 1;
+  uint64 last_seen_seq = 2;
+}
+
+message SubscribeChannelResp {
+  bool ok = 1;
+  uint32 channel_id = 2;
+  uint64 current_last_seq = 3;
+  string message = 4;
+}
+
+message UnsubscribeChannelReq {
+  uint32 channel_id = 1;
+}
+
+message UnsubscribeChannelResp {
+  bool ok = 1;
+  uint32 channel_id = 2;
+}
+
+message CreateGroupReq {
+  uint32 space_id = 1;
+  string name = 2;
+  string description = 3;
+  Visibility visibility = 4;
+  uint32 slow_mode_seconds = 5;
+}
+
+message CreateGroupResp {
+  bool ok = 1;
+  uint32 space_id = 2;
+  uint32 channel_id = 3;
+  ChannelSummary channel = 4;
+  string message = 5;
+}
+
+message CreateChannelReq {
+  uint32 space_id = 1;
+  string name = 2;
+  string description = 3;
+  Visibility visibility = 4;
+  uint32 slow_mode_seconds = 5;
+}
+
+message CreateChannelResp {
+  bool ok = 1;
+  uint32 space_id = 2;
+  uint32 channel_id = 3;
+  ChannelSummary channel = 4;
+  string message = 5;
+}
+
+message AdminSetSpaceMemberRoleReq {
+  uint32 space_id = 1;
+  string target_user_id = 2;
+  MemberRole role = 3;
+}
+
+message AdminSetSpaceMemberRoleResp {
+  bool ok = 1;
+  uint32 space_id = 2;
+  string target_user_id = 3;
+  MemberRole role = 4;
+  string message = 5;
+}
+
+message AdminSetSpaceChannelCreationReq {
+  uint32 space_id = 1;
+  bool allow_channel_creation = 2;
+}
+
+message AdminSetSpaceChannelCreationResp {
+  bool ok = 1;
+  uint32 space_id = 2;
+  bool allow_channel_creation = 3;
+  string message = 4;
+}
+
+message JoinSpaceReq {
+  uint32 space_id = 1;
+}
+
+message JoinSpaceResp {
+  bool ok = 1;
+  uint32 space_id = 2;
+  SpaceSummary space = 3;
+  string message = 4;
+}
+
+message InviteSpaceMemberReq {
+  uint32 space_id = 1;
+  string target_user_id = 2;
+}
+
+message InviteSpaceMemberResp {
+  bool ok = 1;
+  uint32 space_id = 2;
+  string target_user_id = 3;
+  SpaceSummary space = 4;
+  string message = 5;
+}
+
+message KickSpaceMemberReq {
+  uint32 space_id = 1;
+  string target_user_id = 2;
+}
+
+message KickSpaceMemberResp {
+  bool ok = 1;
+  uint32 space_id = 2;
+  string target_user_id = 3;
+  SpaceSummary space = 4;
+  string message = 5;
+}
+
+message BanSpaceMemberReq {
+  uint32 space_id = 1;
+  string target_user_id = 2;
+}
+
+message BanSpaceMemberResp {
+  bool ok = 1;
+  uint32 space_id = 2;
+  string target_user_id = 3;
+  SpaceSummary space = 4;
+  string message = 5;
+}
+
+message MediaImage {
+  string media_id = 1;
+  string blob_id = 2;
+  string sha256 = 3;
+  string url = 4;
+  uint32 width = 5;
+  uint32 height = 6;
+  string mime_type = 7;
+  uint64 size = 8;
+  bytes inline_data = 9;
+  string original_name = 10;
+}
+
+message MediaFile {
+  string media_id = 1;
+  string blob_id = 2;
+  string sha256 = 3;
+  string file_name = 4;
+  string url = 5;
+  string mime_type = 6;
+  uint64 size = 7;
+  bytes inline_data = 8;
+}
+
+message MessageContent {
+  repeated MediaImage images = 1;
+  repeated MediaFile files = 2;
+  string text = 3;
+}
+
+message SendMessageReq {
+  uint32 channel_id = 1;
+  string client_msg_id = 2;
+  MessageType message_type = 3;
+  MessageContent content = 4;
+}
+
+message SendMessageAck {
+  bool ok = 1;
+  uint32 channel_id = 2;
+  string client_msg_id = 3;
+  string message_id = 4;
+  uint64 seq = 5;
+  uint64 server_time_ms = 6;
+  string message = 7;
+}
+
+message MessageEvent {
+  uint32 channel_id = 1;
+  string message_id = 2;
+  uint64 seq = 3;
+  string sender_user_id = 4;
+  MessageType message_type = 5;
+  MessageContent content = 6;
+  uint64 created_at_ms = 7;
+}
+
+message ChannelDeliverAck {
+  uint32 channel_id = 1;
+  uint64 acked_seq = 2;
+}
+
+message ChannelReadUpdate {
+  uint32 channel_id = 1;
+  uint64 last_read_seq = 2;
+}
+
+message SyncChannelReq {
+  uint32 channel_id = 1;
+  uint64 after_seq = 2;
+  uint32 limit = 3;
+}
+
+message SyncChannelResp {
+  uint32 channel_id = 1;
+  repeated MessageEvent messages = 2;
+  uint64 next_after_seq = 3;
+  bool has_more = 4;
+}
+
+message GetMediaReq {
+  string media_id = 1;
+}
+
+message GetMediaResp {
+  bool ok = 1;
+  string media_id = 2;
+  MediaFile file = 3;
+  string message = 4;
+}

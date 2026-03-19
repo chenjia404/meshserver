@@ -1,0 +1,7 @@
+.gocache/
+.gopath/
+.gomodcache/
+docker-compose/data/
+examples/connect-client.key
+.vscode/
+.env

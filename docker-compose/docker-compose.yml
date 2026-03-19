@@ -1,0 +1,48 @@
+name: meshserver
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    command: --binlog_expire_logs_seconds 86400
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-meshserver}
+      MYSQL_USER: ${MYSQL_USER:-meshserver}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-meshserver}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-meshserver_root}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+
+  meshserver:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - mysql
+    environment:
+      MESHSERVER_VERSION: compose
+      MESHSERVER_MYSQL_DSN: "${MYSQL_USER:-meshserver}:${MYSQL_PASSWORD:-meshserver}@tcp(mysql:3306)/${MYSQL_DATABASE:-meshserver}?parseTime=true&multiStatements=true&charset=utf8mb4&collation=utf8mb4_unicode_ci"
+      MESHSERVER_MYSQL_ADMIN_DSN: "root:${MYSQL_ROOT_PASSWORD:-meshserver_root}@tcp(mysql:3306)/mysql?parseTime=true&multiStatements=true&charset=utf8mb4&collation=utf8mb4_unicode_ci"
+      MESHSERVER_HTTP_LISTEN_ADDR: ":8080"
+      MESHSERVER_LIBP2P_LISTEN_ADDRS: "/ip4/0.0.0.0/tcp/4003"
+      MESHSERVER_LIBP2P_PROTOCOL_ID: "/meshserver/session/1.0.0"
+      MESHSERVER_NODE_KEY_PATH: "/app/data/config/node.key"
+      MESHSERVER_BLOB_ROOT: "/app/data/blobs"
+      MESHSERVER_LOG_DIR: "/app/data/logs"
+      MESHSERVER_MIGRATIONS_DIR: "/app/migrations"
+      MESHSERVER_CONFIG_FILE: "/app/data/config/meshserver.json"
+      MESHSERVER_BLOB_URL_BASE: "/blobs/"
+      MESHSERVER_MYSQL_SERVER_PUB_KEY_PATH: "/var/lib/mysql/public_key.pem"
+      MESHSERVER_DEFAULT_ADMIN_PEER_ID: "12D3KooWFG8YwXpmza3vK31yi9MwxyPr5bUHwKYoH7CQ2XUESP8b"
+      MESHSERVER_DEFAULT_SPACE_ID: 1
+    ports:
+      - "${MESHSERVER_HTTP_PORT:-8080}:8080"
+      - "${MESHSERVER_LIBP2P_PORT:-4001}:4003/tcp"
+    volumes:
+      - ./data/blobs:/app/data/blobs
+      - ./data/logs:/app/data/logs
+      - ./data/config:/app/data/config
+      - ./data/mysql:/var/lib/mysql:ro

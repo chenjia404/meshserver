@@ -1,0 +1,9 @@
+.git
+.gocache
+.gomodcache
+docker-compose/data/mysql
+docker-compose/data/blobs
+docker-compose/data/logs
+docker-compose/data/config/node.key
+docker-compose/data/config/meshserver.json
+meshserver

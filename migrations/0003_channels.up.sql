@@ -1,0 +1,42 @@
+CREATE TABLE IF NOT EXISTS channels (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  space_id INT UNSIGNED NOT NULL,
+  type ENUM('group','channel') NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  description VARCHAR(255) NULL,
+  visibility ENUM('public','private') NOT NULL DEFAULT 'public',
+  slow_mode_seconds INT UNSIGNED NOT NULL DEFAULT 0,
+  message_seq BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  message_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  subscriber_count INT UNSIGNED NOT NULL DEFAULT 0,
+  created_by BIGINT UNSIGNED NOT NULL,
+  status TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at DATETIME(3) NOT NULL,
+  updated_at DATETIME(3) NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_channels_space_id (space_id),
+  KEY idx_channels_server_sort (space_id, sort_order),
+  KEY idx_channels_server_type (space_id, type),
+  KEY idx_channels_visibility (visibility)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS channel_members (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  channel_id INT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  role ENUM('owner','admin','member','subscriber') NOT NULL DEFAULT 'member',
+  can_view TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  can_send_message TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  can_send_image TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  can_send_file TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  can_delete_message TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  can_manage_channel TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  joined_at DATETIME(3) NOT NULL,
+  created_at DATETIME(3) NOT NULL,
+  updated_at DATETIME(3) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_channel_members_channel_user (channel_id, user_id),
+  KEY idx_channel_members_user_id (user_id),
+  KEY idx_channel_members_channel_role (channel_id, role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
