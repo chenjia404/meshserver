@@ -347,6 +347,33 @@ Space / channel 创建成功后，创建者可以立刻：
 
 修改后，服务器目录里返回的 `allow_channel_creation` 字段会同步变化。
 
+#### 设置 group 自动删除周期
+
+发送：
+
+- `ADMIN_SET_GROUP_AUTO_DELETE_REQ`
+
+请求字段：
+
+- `channel_id`
+- `auto_delete_after_seconds`
+
+权限规则：
+
+- 只有 `owner` 或 `admin` 可以调用
+- 只支持 `GROUP` 类型的 channel
+
+语义：
+
+- `auto_delete_after_seconds = 0` 表示关闭自动删除
+- 大于 `0` 时，服务端会周期性清理早于这个时间窗口的消息
+- 这个清理是针对整条 group 的历史消息，而不是单条消息
+
+建议做法：
+
+- 如果你刚创建了一个 group，可以立刻把它的自动删除周期设好
+- 如果你已经知道目标 `channel_id`，也可以直接对已有 group 调整周期
+
 #### 踢出成员
 
 发送：
@@ -830,11 +857,19 @@ go run ./examples/admin-client \
   -member-limit=20 \
   -allow-channel-creation=true \
   -create-group=true \
-  -group-name "AI Demo Group" \
+  -group-name "AI Example Group" \
+  -group-auto-delete-after-seconds 86400 \
   -message "hello from the admin client example"
 ```
 
 如果你只想做管理员操作而不创建新的 Space / channel，可以把 `-create-group=false`，再用 `-channel-id` 指向一个已有 channel 的数值 `id`。
+
+如果你想给某个 group 设置自动删除周期，可以额外传：
+
+- `-group-auto-delete-channel-id 12`
+- `-group-auto-delete-after-seconds 86400`
+
+如果你已经创建了 group，但不想再创建新的 channel，可以把 `-create-group=true` 和 `-group-auto-delete-after-seconds` 一起用，示例客户端会优先给新建 group 设置该周期；如果你显式传了 `-group-auto-delete-channel-id`，就会改那个指定的 group。
 
 如果你只想演示“加入多个 Space”，可以只传多次 `-join-space`，然后不传 `-create-group` 或把它设为 `false`。
 

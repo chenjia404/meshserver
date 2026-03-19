@@ -114,6 +114,31 @@ func (a *App) Start(ctx context.Context) error {
 		return err
 	}
 
+	cleanupCtx, cleanupCancel := context.WithCancel(ctx)
+	go func() {
+		defer cleanupCancel()
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				for {
+					deleted, err := messagingService.CleanupExpiredMessages(cleanupCtx)
+					if err != nil {
+						a.logger.Warn("cleanup expired messages failed", "error", err)
+						break
+					}
+					if deleted == 0 {
+						break
+					}
+					a.logger.Info("cleanup expired messages", "deleted", deleted)
+				}
+			case <-cleanupCtx.Done():
+				return
+			}
+		}
+	}()
+
 	errCh := make(chan error, 1)
 	go func() {
 		if err := a.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

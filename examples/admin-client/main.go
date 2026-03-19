@@ -27,39 +27,41 @@ import (
 
 func main() {
 	var (
-		serverAddr                    = flag.String("server-addr", "", "meshserver libp2p address, for example /ip4/127.0.0.1/tcp/4001/p2p/12D3Koo...")
-		discover                      = flag.Bool("discover", false, "discover a meshserver peer via DHT instead of using -server-addr")
-		discoverNamespace             = flag.String("discover-namespace", "meshserver", "DHT rendezvous namespace used by meshserver discovery")
-		protocolID                    = flag.String("protocol-id", "/meshserver/session/1.0.0", "session protocol id")
-		keyPath                       = flag.String("key", "examples/admin-client.key", "path to the client libp2p private key")
-		clientAgent                   = flag.String("client-agent", "admin-client-go", "client agent string")
-		spaceID                       = flag.Uint64("space-id", 0, "target space id")
-		showCreateSpacePermissions   = flag.Bool("create-space-permissions", false, "whether to query create-space permissions after auth")
-		permissionsSpaceID            = flag.Uint64("permissions-space-id", 0, "space_id to query space permissions after auth")
-		createSpace                   = flag.Bool("create-space", false, "whether to create a new space after auth")
-		newSpaceName                  = flag.String("new-space-name", "AI Demo Space", "name for the created space")
-		newSpaceDescription           = flag.String("new-space-description", "Created by the admin client example", "description for the created space")
-		newSpaceVisibility            = flag.String("new-space-visibility", "public", "visibility for the created space: public or private")
-		newSpaceAllowCreate           = flag.Bool("new-space-allow-channel-creation", true, "whether the created space should allow channel creation")
-		joinSpaces                    joinSpaceFlags
-		targetUserID                  = flag.String("target-user-id", "", "target user_id to promote or demote")
-		inviteUserID                  = flag.String("invite-user-id", "", "target user_id to invite into the space")
-		kickUserID                    = flag.String("kick-user-id", "", "target user_id to kick from the space")
-		banUserID                     = flag.String("ban-user-id", "", "target user_id to ban from the space")
-		unbanUserID                   = flag.String("unban-user-id", "", "target user_id to unban from the space")
-		listMembers                   = flag.Bool("list-members", false, "whether to list space members")
-		listMembersAll                = flag.Bool("list-members-all", false, "whether to page through all space members")
-		memberAfterID                 = flag.Uint64("member-after-id", 0, "space member id to start listing after")
-		memberLimit                   = flag.Uint("member-limit", 20, "page size for listing space members")
-		targetRole                    = flag.String("target-role", "admin", "target role: owner, admin, member, subscriber")
-		allowChannelCreation          = flag.Bool("allow-channel-creation", true, "whether the server should allow channel creation")
-		createGroup                   = flag.Bool("create-group", true, "whether to create a group after the admin updates")
-		groupName                     = flag.String("group-name", "AI Demo Group", "name for the created group")
-		groupDescription              = flag.String("group-description", "Created by the admin client example", "description for the created group")
-		channelID                     = flag.Uint64("channel-id", 0, "existing channel id to subscribe and send a message to")
-		messageText                   = flag.String("message", "hello from the admin client example", "text message to send")
-		syncAfterSeq                  = flag.Uint64("sync-after-seq", 0, "seq to start syncing from")
-		requestTimeout                = flag.Duration("timeout", 20*time.Second, "total request timeout")
+		serverAddr                  = flag.String("server-addr", "", "meshserver libp2p address, for example /ip4/127.0.0.1/tcp/4001/p2p/12D3Koo...")
+		discover                    = flag.Bool("discover", false, "discover a meshserver peer via DHT instead of using -server-addr")
+		discoverNamespace           = flag.String("discover-namespace", "meshserver", "DHT rendezvous namespace used by meshserver discovery")
+		protocolID                  = flag.String("protocol-id", "/meshserver/session/1.0.0", "session protocol id")
+		keyPath                     = flag.String("key", "examples/admin-client.key", "path to the client libp2p private key")
+		clientAgent                 = flag.String("client-agent", "admin-client-go", "client agent string")
+		spaceID                     = flag.Uint64("space-id", 0, "target space id")
+		showCreateSpacePermissions  = flag.Bool("create-space-permissions", false, "whether to query create-space permissions after auth")
+		permissionsSpaceID          = flag.Uint64("permissions-space-id", 0, "space_id to query space permissions after auth")
+		createSpace                 = flag.Bool("create-space", false, "whether to create a new space after auth")
+		newSpaceName                = flag.String("new-space-name", "AI Example Space", "name for the created space")
+		newSpaceDescription         = flag.String("new-space-description", "Created by the admin client example", "description for the created space")
+		newSpaceVisibility          = flag.String("new-space-visibility", "public", "visibility for the created space: public or private")
+		newSpaceAllowCreate         = flag.Bool("new-space-allow-channel-creation", true, "whether the created space should allow channel creation")
+		joinSpaces                  joinSpaceFlags
+		targetUserID                = flag.String("target-user-id", "", "target user_id to promote or demote")
+		inviteUserID                = flag.String("invite-user-id", "", "target user_id to invite into the space")
+		kickUserID                  = flag.String("kick-user-id", "", "target user_id to kick from the space")
+		banUserID                   = flag.String("ban-user-id", "", "target user_id to ban from the space")
+		unbanUserID                 = flag.String("unban-user-id", "", "target user_id to unban from the space")
+		listMembers                 = flag.Bool("list-members", false, "whether to list space members")
+		listMembersAll              = flag.Bool("list-members-all", false, "whether to page through all space members")
+		memberAfterID               = flag.Uint64("member-after-id", 0, "space member id to start listing after")
+		memberLimit                 = flag.Uint("member-limit", 20, "page size for listing space members")
+		targetRole                  = flag.String("target-role", "admin", "target role: owner, admin, member, subscriber")
+		allowChannelCreation        = flag.Bool("allow-channel-creation", true, "whether the server should allow channel creation")
+		createGroup                 = flag.Bool("create-group", true, "whether to create a group after the admin updates")
+		groupName                   = flag.String("group-name", "AI Example Group", "name for the created group")
+		groupDescription            = flag.String("group-description", "Created by the admin client example", "description for the created group")
+		groupAutoDeleteChannelID    = flag.Uint64("group-auto-delete-channel-id", 0, "channel id to configure group auto delete for")
+		groupAutoDeleteAfterSeconds = flag.Uint("group-auto-delete-after-seconds", 0, "auto delete period in seconds for the group")
+		channelID                   = flag.Uint64("channel-id", 0, "existing channel id to subscribe and send a message to")
+		messageText                 = flag.String("message", "hello from the admin client example", "text message to send")
+		syncAfterSeq                = flag.Uint64("sync-after-seq", 0, "seq to start syncing from")
+		requestTimeout              = flag.Duration("timeout", 20*time.Second, "total request timeout")
 	)
 	var dhtBootstrapPeers bootstrapPeerFlags
 	flag.Var(&dhtBootstrapPeers, "dht-bootstrap-peer", "repeatable DHT bootstrap multiaddr used for discovery")
@@ -286,6 +288,29 @@ func main() {
 		activeChannelID = uint32(*channelID)
 	}
 
+	autoDeleteChannelID := uint32(*groupAutoDeleteChannelID)
+	if autoDeleteChannelID == 0 {
+		autoDeleteChannelID = activeChannelID
+	}
+	if autoDeleteChannelID == 0 {
+		autoDeleteChannelID = uint32(*channelID)
+	}
+	if autoDeleteChannelID != 0 && *groupAutoDeleteAfterSeconds > 0 {
+		resp, err := setGroupAutoDelete(stream, autoDeleteChannelID, uint32(*groupAutoDeleteAfterSeconds))
+		if err != nil {
+			log.Fatalf("set group auto delete: %v", err)
+		}
+		fmt.Printf(
+			"updated group auto delete: channel_id=%d auto_delete_after_seconds=%d name=%s\n",
+			resp.ChannelId,
+			resp.AutoDeleteAfterSeconds,
+			resp.Channel.Name,
+		)
+		if activeChannelID == 0 {
+			activeChannelID = autoDeleteChannelID
+		}
+	}
+
 	if activeChannelID == 0 {
 		return
 	}
@@ -440,6 +465,27 @@ func createGroupChannel(stream network.Stream, spaceID uint32, name string, desc
 	}
 	if !resp.Ok {
 		return nil, fmt.Errorf("create group rejected")
+	}
+	return &resp, nil
+}
+
+func setGroupAutoDelete(stream network.Stream, channelID uint32, seconds uint32) (*sessionv1.AdminSetGroupAutoDeleteResp, error) {
+	if err := writeEnvelope(stream, sessionv1.MsgType_ADMIN_SET_GROUP_AUTO_DELETE_REQ, requestID("group-auto-delete"), &sessionv1.AdminSetGroupAutoDeleteReq{
+		ChannelId:              channelID,
+		AutoDeleteAfterSeconds: seconds,
+	}); err != nil {
+		return nil, err
+	}
+	env, err := readEnvelopeExpect(stream, sessionv1.MsgType_ADMIN_SET_GROUP_AUTO_DELETE_RESP)
+	if err != nil {
+		return nil, err
+	}
+	var resp sessionv1.AdminSetGroupAutoDeleteResp
+	if err := protocol.UnmarshalBody(env.Body, &resp); err != nil {
+		return nil, fmt.Errorf("unmarshal group auto delete resp: %w", err)
+	}
+	if !resp.Ok {
+		return nil, fmt.Errorf("set group auto delete rejected")
 	}
 	return &resp, nil
 }
@@ -671,7 +717,7 @@ func createSpaceRPC(stream network.Stream, name string, description string, visi
 func printChannels(channels []*sessionv1.ChannelSummary) {
 	fmt.Println("channels:")
 	for _, ch := range channels {
-		fmt.Printf("  - %d (%s) type=%s can_view=%v can_send_message=%v\n", ch.ChannelId, ch.Name, ch.Type.String(), ch.CanView, ch.CanSendMessage)
+		fmt.Printf("  - %d (%s) type=%s auto_delete_after_seconds=%d can_view=%v can_send_message=%v\n", ch.ChannelId, ch.Name, ch.Type.String(), ch.AutoDeleteAfterSeconds, ch.CanView, ch.CanSendMessage)
 	}
 }
 

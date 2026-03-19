@@ -28,6 +28,7 @@
 - `CREATE_CHANNEL_REQ / RESP`
 - `ADMIN_SET_SPACE_MEMBER_ROLE_REQ / RESP`
 - `ADMIN_SET_SPACE_CHANNEL_CREATION_REQ / RESP`
+- `ADMIN_SET_GROUP_AUTO_DELETE_REQ / RESP`
 - `SEND_MESSAGE_REQ / ACK`
 - `MESSAGE_EVENT`
 - `CHANNEL_DELIVER_ACK`
@@ -168,6 +169,19 @@ go run ./examples/admin-client \
   -new-space-allow-channel-creation=true \
   -dht-bootstrap-peer /ip4/127.0.0.1/tcp/4001/p2p/12D3KooW...
 ```
+
+如果你想给某个 group 设置自动删除周期，可以用 `admin-client` 对已有 `channel_id` 执行：
+
+```bash
+go run ./examples/admin-client \
+  -node-peer-id 12D3KooW... \
+  -group-auto-delete-channel-id 12 \
+  -group-auto-delete-after-seconds 86400 \
+  -create-group=false \
+  -dht-bootstrap-peer /ip4/127.0.0.1/tcp/4001/p2p/12D3KooW...
+```
+
+这表示该 group 中早于 `86400` 秒之前的消息会被后台清理。
 
 ## 如何生成 proto
 

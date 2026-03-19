@@ -211,6 +211,96 @@ func (s *Store) ListChannelIDsByMediaID(ctx context.Context, mediaID string) ([]
 	return ids, nil
 }
 
+func (s *Store) CleanupExpiredMessages(ctx context.Context, now time.Time, limit uint32) (uint32, error) {
+	if limit == 0 {
+		limit = 100
+	}
+
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin cleanup expired messages tx: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	type expiredRow struct {
+		ID        uint64 `db:"id"`
+		ChannelID uint32 `db:"channel_id"`
+	}
+	var rows []expiredRow
+	if err = tx.SelectContext(ctx, &rows, `
+		SELECT
+			m.id,
+			m.channel_id
+		FROM messages m
+		INNER JOIN channels c ON c.id = m.channel_id
+		WHERE m.status = 'normal'
+			AND c.auto_delete_after_seconds > 0
+			AND m.created_at < DATE_SUB(?, INTERVAL c.auto_delete_after_seconds SECOND)
+		ORDER BY m.created_at ASC, m.id ASC
+		LIMIT ?
+	`, now, limit); err != nil {
+		return 0, fmt.Errorf("load expired messages: %w", err)
+	}
+	if len(rows) == 0 {
+		if err = tx.Commit(); err != nil {
+			return 0, fmt.Errorf("commit cleanup expired messages tx (empty): %w", err)
+		}
+		return 0, nil
+	}
+
+	deletedByChannel := make(map[uint32]uint64)
+	for _, row := range rows {
+		res, execErr := tx.ExecContext(ctx, `
+			UPDATE messages
+			SET status = 'deleted', deleted_at = ?, updated_at = ?
+			WHERE id = ? AND status = 'normal'
+		`, now, now, row.ID)
+		if execErr != nil {
+			err = fmt.Errorf("mark expired message deleted: %w", execErr)
+			return 0, err
+		}
+		affected, execErr := res.RowsAffected()
+		if execErr != nil {
+			err = fmt.Errorf("expired message rows affected: %w", execErr)
+			return 0, err
+		}
+		if affected > 0 {
+			deletedByChannel[row.ChannelID]++
+		}
+	}
+
+	for channelID, count := range deletedByChannel {
+		if count == 0 {
+			continue
+		}
+		if _, err = tx.ExecContext(ctx, `
+			UPDATE channels
+			SET message_count = CASE
+				WHEN message_count > ? THEN message_count - ?
+				ELSE 0
+			END,
+			updated_at = ?
+			WHERE id = ?
+		`, count, count, now, channelID); err != nil {
+			return 0, fmt.Errorf("update expired channel count: %w", err)
+		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit cleanup expired messages tx: %w", err)
+	}
+
+	var total uint32
+	for _, count := range deletedByChannel {
+		total += uint32(count)
+	}
+	return total, nil
+}
+
 func (s *Store) loadMessageByID(ctx context.Context, id uint64) (*message.Message, error) {
 	const query = `
 		SELECT

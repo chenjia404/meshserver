@@ -72,6 +72,8 @@ enum MsgType {
   GET_CREATE_GROUP_PERMISSIONS_RESP = 62;
   GET_MEDIA_REQ = 63;
   GET_MEDIA_RESP = 64;
+  ADMIN_SET_GROUP_AUTO_DELETE_REQ = 65;
+  ADMIN_SET_GROUP_AUTO_DELETE_RESP = 66;
 }
 
 enum Visibility {
@@ -171,12 +173,13 @@ message ChannelSummary {
   string description = 5;
   Visibility visibility = 6;
   uint32 slow_mode_seconds = 7;
-  uint64 last_seq = 8;
-  uint32 member_count = 9;
-  bool can_view = 10;
-  bool can_send_message = 11;
-  bool can_send_image = 12;
-  bool can_send_file = 13;
+  uint32 auto_delete_after_seconds = 8;
+  uint64 last_seq = 9;
+  uint32 member_count = 10;
+  bool can_view = 11;
+  bool can_send_message = 12;
+  bool can_send_image = 13;
+  bool can_send_file = 14;
 }
 
 message ListChannelsReq {
@@ -481,4 +484,17 @@ message GetMediaResp {
   string media_id = 2;
   MediaFile file = 3;
   string message = 4;
+}
+
+message AdminSetGroupAutoDeleteReq {
+  uint32 channel_id = 1;
+  uint32 auto_delete_after_seconds = 2;
+}
+
+message AdminSetGroupAutoDeleteResp {
+  bool ok = 1;
+  uint32 channel_id = 2;
+  uint32 auto_delete_after_seconds = 3;
+  ChannelSummary channel = 4;
+  string message = 5;
 }

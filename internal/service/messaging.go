@@ -46,6 +46,7 @@ type MessagingService interface {
 	SyncChannel(ctx context.Context, userID uint64, channelID uint32, afterSeq uint64, limit uint32) ([]*message.Message, uint64, bool, error)
 	AckDelivered(ctx context.Context, userID uint64, channelID uint32, seq uint64) error
 	UpdateRead(ctx context.Context, userID uint64, channelID uint32, seq uint64) error
+	CleanupExpiredMessages(ctx context.Context) (uint32, error)
 }
 
 type messagingService struct {
@@ -156,6 +157,11 @@ func (s *messagingService) UpdateRead(ctx context.Context, userID uint64, channe
 		return ErrForbidden
 	}
 	return s.reads.UpsertReadSeq(ctx, userID, channelID, seq)
+}
+
+func (s *messagingService) CleanupExpiredMessages(ctx context.Context) (uint32, error) {
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	return s.messages.CleanupExpiredMessages(ctx, now, 200)
 }
 
 func (s *messagingService) validateMessage(ctx context.Context, ch *channel.Channel, perm *channel.Permission, userID uint64, in SendMessageInput) error {

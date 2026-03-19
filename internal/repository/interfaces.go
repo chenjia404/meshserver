@@ -108,6 +108,7 @@ type ChannelRepository interface {
 	IsUserMember(ctx context.Context, channelID uint32, userID uint64) (bool, error)
 	GetPermission(ctx context.Context, channelID uint32, userID uint64) (*channel.Permission, error)
 	CreateChannel(ctx context.Context, in CreateChannelInput) (*channel.Channel, error)
+	SetGroupAutoDeleteAfterSeconds(ctx context.Context, channelID uint32, seconds uint32) error
 }
 
 // CreateChannelInput describes a new channel to create.
@@ -149,6 +150,7 @@ type MessageRepository interface {
 	GetByClientMsgID(ctx context.Context, channelID uint32, senderUserID uint64, clientMsgID string) (*message.Message, error)
 	GetLastMessageTime(ctx context.Context, channelID uint32, senderUserID uint64) (*time.Time, error)
 	ListChannelIDsByMediaID(ctx context.Context, mediaID string) ([]uint32, error)
+	CleanupExpiredMessages(ctx context.Context, now time.Time, limit uint32) (uint32, error)
 }
 
 // ReadCursorRepository owns delivery and read cursor tracking.

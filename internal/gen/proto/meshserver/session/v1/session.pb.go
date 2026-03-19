@@ -54,6 +54,8 @@ const (
 	MsgType_GET_CREATE_GROUP_PERMISSIONS_RESP     MsgType = 62
 	MsgType_GET_MEDIA_REQ                         MsgType = 63
 	MsgType_GET_MEDIA_RESP                        MsgType = 64
+	MsgType_ADMIN_SET_GROUP_AUTO_DELETE_REQ       MsgType = 65
+	MsgType_ADMIN_SET_GROUP_AUTO_DELETE_RESP      MsgType = 66
 	MsgType_ADMIN_SET_SPACE_MEMBER_ROLE_REQ       MsgType = 39
 	MsgType_ADMIN_SET_SPACE_MEMBER_ROLE_RESP      MsgType = 40
 	MsgType_ADMIN_SET_SPACE_CHANNEL_CREATION_REQ  MsgType = 41
@@ -112,6 +114,8 @@ var MsgType_name = map[int32]string{
 	62: "GET_CREATE_GROUP_PERMISSIONS_RESP",
 	63: "GET_MEDIA_REQ",
 	64: "GET_MEDIA_RESP",
+	65: "ADMIN_SET_GROUP_AUTO_DELETE_REQ",
+	66: "ADMIN_SET_GROUP_AUTO_DELETE_RESP",
 }
 
 func (x MsgType) String() string { return proto.EnumName(MsgType_name, int32(x)) }
@@ -281,12 +285,13 @@ type ChannelSummary struct {
 	Description     string      `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
 	Visibility      Visibility  `protobuf:"varint,6,opt,name=visibility,proto3,enum=meshserver.session.v1.Visibility" json:"visibility,omitempty"`
 	SlowModeSeconds uint32      `protobuf:"varint,7,opt,name=slow_mode_seconds,json=slowModeSeconds,proto3" json:"slow_mode_seconds,omitempty"`
-	LastSeq         uint64      `protobuf:"varint,8,opt,name=last_seq,json=lastSeq,proto3" json:"last_seq,omitempty"`
-	MemberCount     uint32      `protobuf:"varint,9,opt,name=member_count,json=memberCount,proto3" json:"member_count,omitempty"`
-	CanView         bool        `protobuf:"varint,10,opt,name=can_view,json=canView,proto3" json:"can_view,omitempty"`
-	CanSendMessage  bool        `protobuf:"varint,11,opt,name=can_send_message,json=canSendMessage,proto3" json:"can_send_message,omitempty"`
-	CanSendImage    bool        `protobuf:"varint,12,opt,name=can_send_image,json=canSendImage,proto3" json:"can_send_image,omitempty"`
-	CanSendFile     bool        `protobuf:"varint,13,opt,name=can_send_file,json=canSendFile,proto3" json:"can_send_file,omitempty"`
+	AutoDeleteAfterSeconds uint32      `protobuf:"varint,8,opt,name=auto_delete_after_seconds,json=autoDeleteAfterSeconds,proto3" json:"auto_delete_after_seconds,omitempty"`
+	LastSeq                uint64      `protobuf:"varint,9,opt,name=last_seq,json=lastSeq,proto3" json:"last_seq,omitempty"`
+	MemberCount            uint32      `protobuf:"varint,10,opt,name=member_count,json=memberCount,proto3" json:"member_count,omitempty"`
+	CanView                bool        `protobuf:"varint,11,opt,name=can_view,json=canView,proto3" json:"can_view,omitempty"`
+	CanSendMessage         bool        `protobuf:"varint,12,opt,name=can_send_message,json=canSendMessage,proto3" json:"can_send_message,omitempty"`
+	CanSendImage           bool        `protobuf:"varint,13,opt,name=can_send_image,json=canSendImage,proto3" json:"can_send_image,omitempty"`
+	CanSendFile            bool        `protobuf:"varint,14,opt,name=can_send_file,json=canSendFile,proto3" json:"can_send_file,omitempty"`
 }
 
 func (m *ChannelSummary) Reset()         { *m = ChannelSummary{} }
@@ -804,3 +809,24 @@ type GetMediaResp struct {
 func (m *GetMediaResp) Reset()         { *m = GetMediaResp{} }
 func (m *GetMediaResp) String() string { return proto.CompactTextString(m) }
 func (*GetMediaResp) ProtoMessage()    {}
+
+type AdminSetGroupAutoDeleteReq struct {
+	ChannelId              uint32 `protobuf:"varint,1,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	AutoDeleteAfterSeconds uint32 `protobuf:"varint,2,opt,name=auto_delete_after_seconds,json=autoDeleteAfterSeconds,proto3" json:"auto_delete_after_seconds,omitempty"`
+}
+
+func (m *AdminSetGroupAutoDeleteReq) Reset()         { *m = AdminSetGroupAutoDeleteReq{} }
+func (m *AdminSetGroupAutoDeleteReq) String() string { return proto.CompactTextString(m) }
+func (*AdminSetGroupAutoDeleteReq) ProtoMessage()    {}
+
+type AdminSetGroupAutoDeleteResp struct {
+	Ok                     bool          `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	ChannelId              uint32        `protobuf:"varint,2,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
+	AutoDeleteAfterSeconds uint32        `protobuf:"varint,3,opt,name=auto_delete_after_seconds,json=autoDeleteAfterSeconds,proto3" json:"auto_delete_after_seconds,omitempty"`
+	Channel                *ChannelSummary `protobuf:"bytes,4,opt,name=channel,proto3" json:"channel,omitempty"`
+	Message                string        `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`
+}
+
+func (m *AdminSetGroupAutoDeleteResp) Reset()         { *m = AdminSetGroupAutoDeleteResp{} }
+func (m *AdminSetGroupAutoDeleteResp) String() string { return proto.CompactTextString(m) }
+func (*AdminSetGroupAutoDeleteResp) ProtoMessage()    {}

@@ -418,6 +418,44 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 			AllowChannelCreation: req.AllowChannelCreation,
 			Message:              "updated",
 		})
+	case sessionv1.MsgType_ADMIN_SET_GROUP_AUTO_DELETE_REQ:
+		var req sessionv1.AdminSetGroupAutoDeleteReq
+		if err := protocol.UnmarshalBody(env.Body, &req); err != nil {
+			return err
+		}
+		ch, err := m.channels.GetByChannelID(ctx, req.ChannelId)
+		if err != nil {
+			return err
+		}
+		if ch.Type != channel.TypeSpace {
+			return fmt.Errorf("auto delete is only supported for group channels")
+		}
+		actorRole, err := m.spaces.GetMemberRole(ctx, ch.SpaceDBID, sess.authResult.User.ID)
+		if err != nil {
+			return err
+		}
+		if actorRole != space.RoleOwner && actorRole != space.RoleAdmin {
+			return fmt.Errorf("admin role required")
+		}
+		if err := m.channels.SetGroupAutoDeleteAfterSeconds(ctx, req.ChannelId, req.AutoDeleteAfterSeconds); err != nil {
+			return err
+		}
+		if deleted, err := m.messaging.CleanupExpiredMessages(ctx); err == nil && deleted > 0 {
+			m.logger.Info("cleanup expired messages after auto-delete update", "deleted", deleted, "channel_id", req.ChannelId)
+		} else if err != nil {
+			m.logger.Warn("cleanup expired messages after auto-delete update failed", "channel_id", req.ChannelId, "error", err)
+		}
+		ch, err = m.channels.GetByChannelID(ctx, req.ChannelId)
+		if err != nil {
+			return err
+		}
+		return sess.write(sessionv1.MsgType_ADMIN_SET_GROUP_AUTO_DELETE_RESP, env.RequestId, &sessionv1.AdminSetGroupAutoDeleteResp{
+			Ok:                     true,
+			ChannelId:              req.ChannelId,
+			AutoDeleteAfterSeconds: ch.AutoDeleteAfterSeconds,
+			Channel:                toChannelSummary(ch),
+			Message:                "updated",
+		})
 	case sessionv1.MsgType_JOIN_SPACE_REQ:
 		var req sessionv1.JoinSpaceReq
 		if err := protocol.UnmarshalBody(env.Body, &req); err != nil {
@@ -749,19 +787,20 @@ func toSpaceSummary(item *space.Space) *sessionv1.SpaceSummary {
 
 func toChannelSummary(item *channel.Channel) *sessionv1.ChannelSummary {
 	return &sessionv1.ChannelSummary{
-		ChannelId:       item.ID,
-		SpaceId:         item.SpaceDBID,
-		Type:            toChannelType(item.Type),
-		Name:            item.Name,
-		Description:     item.Description,
-		Visibility:      toVisibility(item.Visibility),
-		SlowModeSeconds: item.SlowModeSeconds,
-		LastSeq:         item.MessageSeq,
-		MemberCount:     item.MemberCount,
-		CanView:         item.Permission.CanView,
-		CanSendMessage:  item.Permission.CanSendMessage,
-		CanSendImage:    item.Permission.CanSendImage,
-		CanSendFile:     item.Permission.CanSendFile,
+		ChannelId:              item.ID,
+		SpaceId:                item.SpaceDBID,
+		Type:                   toChannelType(item.Type),
+		Name:                   item.Name,
+		Description:            item.Description,
+		Visibility:             toVisibility(item.Visibility),
+		SlowModeSeconds:        item.SlowModeSeconds,
+		AutoDeleteAfterSeconds: item.AutoDeleteAfterSeconds,
+		LastSeq:                item.MessageSeq,
+		MemberCount:            item.MemberCount,
+		CanView:                item.Permission.CanView,
+		CanSendMessage:         item.Permission.CanSendMessage,
+		CanSendImage:           item.Permission.CanSendImage,
+		CanSendFile:            item.Permission.CanSendFile,
 	}
 }
 
