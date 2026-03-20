@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -14,14 +15,18 @@ import (
 // BootstrapDefaultAdmin ensures the user for adminPeerID exists and has admin (or owner) role in targetSpaceID.
 // When targetSpaceID is 0, it defaults to 1.
 // Does not create any space: if the space does not exist yet, bootstrap is skipped (restart after the space exists).
-func (s *Store) BootstrapDefaultAdmin(ctx context.Context, adminPeerID string, targetSpaceID uint32) error {
+// Peer IDs are stored in canonical form (Decode→String) so they match authenticated client_peer_id strings.
+func (s *Store) BootstrapDefaultAdmin(ctx context.Context, logger *slog.Logger, adminPeerID string, targetSpaceID uint32) error {
 	adminPeerID = strings.TrimSpace(adminPeerID)
 	if adminPeerID == "" {
 		return nil
 	}
-	if _, err := peer.Decode(adminPeerID); err != nil {
+	decoded, err := peer.Decode(adminPeerID)
+	if err != nil {
 		return fmt.Errorf("default admin peer id: %w", err)
 	}
+	adminPeerID = decoded.String()
+
 	if targetSpaceID == 0 {
 		targetSpaceID = 1
 	}
@@ -34,8 +39,18 @@ func (s *Store) BootstrapDefaultAdmin(ctx context.Context, adminPeerID string, t
 	_, err = s.GetBySpaceID(ctx, targetSpaceID)
 	switch {
 	case err == nil:
-		return s.ensureAdminMembership(ctx, targetSpaceID, usr.ID)
+		if err := s.ensureAdminMembership(ctx, targetSpaceID, usr.ID); err != nil {
+			return err
+		}
+		if logger != nil {
+			logger.Info("default admin bootstrap applied", "peer_id", adminPeerID, "space_id", targetSpaceID, "user_db_id", usr.ID)
+		}
+		return nil
 	case err == repository.ErrNotFound:
+		if logger != nil {
+			logger.Warn("default admin bootstrap skipped: space does not exist yet; create the space and restart, or set MESHSERVER_DEFAULT_SPACE_ID",
+				"peer_id", adminPeerID, "space_id", targetSpaceID)
+		}
 		return nil
 	default:
 		return fmt.Errorf("bootstrap default admin: load space: %w", err)

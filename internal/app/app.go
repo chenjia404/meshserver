@@ -101,7 +101,7 @@ func (a *App) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := store.BootstrapDefaultAdmin(ctx, a.cfg.DefaultAdminPeerID, a.cfg.DefaultSpaceID); err != nil {
+	if err := store.BootstrapDefaultAdmin(ctx, a.logger, a.cfg.DefaultAdminPeerID, a.cfg.DefaultSpaceID); err != nil {
 		return err
 	}
 
@@ -112,7 +112,7 @@ func (a *App) Start(ctx context.Context) error {
 	messagingService := service.NewMessagingService(a.cfg, store, store, store, mediaService)
 	authService := auth.NewService(a.cfg, store, store, a.logger)
 
-	a.session = session.NewManager(a.logger, authService, store, store, directoryService, messagingService, mediaService, store, store, node.PeerID, nodeRecord.ID, a.cfg.BlobURLBase)
+	a.session = session.NewManager(a.logger, authService, store, store, directoryService, messagingService, mediaService, store, store, node.PeerID, nodeRecord.ID, a.cfg.BlobURLBase, a.cfg.DefaultAdminPeerID)
 	node.SetSessionHandler(a.session.HandleStream)
 	if err := node.Start(ctx); err != nil {
 		return err

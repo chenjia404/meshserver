@@ -80,20 +80,6 @@ func (s *Store) GetMemberRole(ctx context.Context, spaceID uint32, userID uint64
 	return space.Role(role), nil
 }
 
-func (s *Store) CanCreateSpace(ctx context.Context, userID uint64) (bool, error) {
-	const query = `
-		SELECT COUNT(1)
-		FROM server_members sm
-		INNER JOIN servers s ON s.id = sm.space_id
-		WHERE sm.user_id = ? AND sm.is_banned = 0 AND s.status = 1 AND sm.role IN ('owner', 'admin')
-	`
-	var count uint64
-	if err := s.db.GetContext(ctx, &count, query, userID); err != nil {
-		return false, fmt.Errorf("check create space permission: %w", err)
-	}
-	return count > 0, nil
-}
-
 func (s *Store) CanCreateGroup(ctx context.Context, spaceID uint32, userID uint64) (bool, error) {
 	const query = `
 		SELECT COUNT(1)

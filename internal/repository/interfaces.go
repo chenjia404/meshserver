@@ -88,7 +88,6 @@ type SpaceRepository interface {
 	ListByUserID(ctx context.Context, userID uint64) ([]*space.Space, error)
 	GetBySpaceID(ctx context.Context, spaceID uint32) (*space.Space, error)
 	GetMemberRole(ctx context.Context, spaceID uint32, userID uint64) (space.Role, error)
-	CanCreateSpace(ctx context.Context, userID uint64) (bool, error)
 	CanCreateGroup(ctx context.Context, spaceID uint32, userID uint64) (bool, error)
 	CreateSpace(ctx context.Context, in CreateSpaceInput) (*space.Space, error)
 	JoinSpace(ctx context.Context, spaceID uint32, userID uint64) (*space.Space, error)

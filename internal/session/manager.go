@@ -20,6 +20,8 @@ import (
 	"meshserver/internal/repository"
 	"meshserver/internal/service"
 	"meshserver/internal/space"
+
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // ConnSession tracks the state associated with one libp2p stream.
@@ -45,30 +47,48 @@ type Manager struct {
 	media         service.MediaService
 	messages      repository.MessageRepository
 	channels      repository.ChannelRepository
-	nodePeerID    func() string
-	nodeID        uint64
-	blobURLBase   string
-	mu            sync.RWMutex
-	subscriptions map[uint32]map[*ConnSession]struct{}
+	nodePeerID         func() string
+	nodeID             uint64
+	blobURLBase        string
+	globalAdminPeerID  string
+	mu                 sync.RWMutex
+	subscriptions      map[uint32]map[*ConnSession]struct{}
 }
 
 // NewManager builds a session manager.
-func NewManager(logger *slog.Logger, authService *auth.Service, users repository.UserRepository, spaces repository.SpaceRepository, directory service.DirectoryService, messaging service.MessagingService, media service.MediaService, messages repository.MessageRepository, channels repository.ChannelRepository, nodePeerID func() string, nodeID uint64, blobURLBase string) *Manager {
+// globalAdminPeerID is MESHSERVER_DEFAULT_ADMIN_PEER_ID: only this libp2p peer may create spaces (empty disables creation for everyone).
+func NewManager(logger *slog.Logger, authService *auth.Service, users repository.UserRepository, spaces repository.SpaceRepository, directory service.DirectoryService, messaging service.MessagingService, media service.MediaService, messages repository.MessageRepository, channels repository.ChannelRepository, nodePeerID func() string, nodeID uint64, blobURLBase string, globalAdminPeerID string) *Manager {
 	return &Manager{
-		logger:        logger,
-		authService:   authService,
-		users:         users,
-		spaces:        spaces,
-		directory:     directory,
-		messaging:     messaging,
-		media:         media,
-		messages:      messages,
-		channels:      channels,
-		nodePeerID:    nodePeerID,
-		nodeID:        nodeID,
-		blobURLBase:   blobURLBase,
-		subscriptions: make(map[uint32]map[*ConnSession]struct{}),
+		logger:            logger,
+		authService:       authService,
+		users:             users,
+		spaces:            spaces,
+		directory:         directory,
+		messaging:         messaging,
+		media:             media,
+		messages:          messages,
+		channels:          channels,
+		nodePeerID:        nodePeerID,
+		nodeID:              nodeID,
+		blobURLBase:         blobURLBase,
+		globalAdminPeerID:   strings.TrimSpace(globalAdminPeerID),
+		subscriptions:       make(map[uint32]map[*ConnSession]struct{}),
 	}
+}
+
+func (m *Manager) isGlobalAdmin(clientPeerID string) bool {
+	if m.globalAdminPeerID == "" {
+		return false
+	}
+	cfgID, err := peer.Decode(m.globalAdminPeerID)
+	if err != nil {
+		return false
+	}
+	userID, err := peer.Decode(strings.TrimSpace(clientPeerID))
+	if err != nil {
+		return false
+	}
+	return cfgID == userID
 }
 
 // HandleStream serves a single inbound libp2p session stream.
@@ -266,11 +286,7 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		if err := protocol.UnmarshalBody(env.Body, &req); err != nil {
 			return err
 		}
-		canCreateSpace, err := m.spaces.CanCreateSpace(ctx, sess.authResult.User.ID)
-		if err != nil {
-			return err
-		}
-		if !canCreateSpace {
+		if !m.isGlobalAdmin(sess.authResult.User.PeerID) {
 			return fmt.Errorf("create space permission required")
 		}
 		item, err := m.spaces.CreateSpace(ctx, repository.CreateSpaceInput{
@@ -295,10 +311,7 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		if err := protocol.UnmarshalBody(env.Body, &req); err != nil {
 			return err
 		}
-		canCreateSpace, err := m.spaces.CanCreateSpace(ctx, sess.authResult.User.ID)
-		if err != nil {
-			return err
-		}
+		canCreateSpace := m.isGlobalAdmin(sess.authResult.User.PeerID)
 		return sess.write(sessionv1.MsgType_GET_CREATE_SPACE_PERMISSIONS_RESP, env.RequestId, &sessionv1.GetCreateSpacePermissionsResp{
 			Ok:             true,
 			CanCreateSpace: canCreateSpace,
