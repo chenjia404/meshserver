@@ -19,7 +19,6 @@ import (
 	p2pprotocol "github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/core/routing"
 	discoveryrouting "github.com/libp2p/go-libp2p/p2p/discovery/routing"
-	connmgr "github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/libp2p/go-libp2p/p2p/security/noise"
 	libp2ptls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/multiformats/go-multiaddr"
@@ -46,11 +45,11 @@ func NewNode(ctx context.Context, cfg *config.Config, logger *slog.Logger, sessi
 		return nil, err
 	}
 
-	connmgr_, _ := connmgr.NewConnManager(
-		50,
-		400,
-		connmgr.WithGracePeriod(time.Minute),
-	)
+	// connmgr_, _ := connmgr.NewConnManager(
+	// 	50,
+	// 	400,
+	// 	connmgr.WithGracePeriod(time.Minute),
+	// )
 
 	bootstrapPeers, err := collectDHTBootstrapPeers(cfg.DHTBootstrapPeers)
 	if err != nil {
@@ -67,7 +66,7 @@ func NewNode(ctx context.Context, cfg *config.Config, logger *slog.Logger, sessi
 		libp2p.Security(libp2ptls.ID, libp2ptls.New),
 		libp2p.Security(noise.ID, noise.New),
 		libp2p.DefaultPeerstore,
-		libp2p.ConnectionManager(connmgr_),
+		// libp2p.ConnectionManager(connmgr_),
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
 			instance, err := dht.New(ctx, h, dht.Mode(dht.ModeAuto), dht.BootstrapPeers(bootstrapPeers...))
 			if err == nil {
