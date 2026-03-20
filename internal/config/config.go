@@ -52,6 +52,8 @@ type Config struct {
 	BlobURLBase            string
 	DHTDiscoveryNamespace  string
 	DHTBootstrapPeers      []string
+	DefaultAdminPeerID     string
+	DefaultSpaceID         uint32
 }
 
 type fileConfig struct {
@@ -88,6 +90,8 @@ type fileConfig struct {
 	BlobURLBase            *string  `json:"blob_url_base"`
 	DHTDiscoveryNamespace  *string  `json:"dht_discovery_namespace"`
 	DHTBootstrapPeers      []string `json:"dht_bootstrap_peers"`
+	DefaultAdminPeerID     *string  `json:"default_admin_peer_id"`
+	DefaultSpaceID         *uint32  `json:"default_space_id"`
 }
 
 // Load loads configuration from defaults, optional JSON config file, and env vars.
@@ -178,6 +182,8 @@ func defaults() *Config {
 		BlobURLBase:            "/blobs/",
 		DHTDiscoveryNamespace:  "meshserver",
 		DHTBootstrapPeers:      nil,
+		DefaultAdminPeerID:     "",
+		DefaultSpaceID:         0,
 	}
 }
 
@@ -229,6 +235,8 @@ func applyFile(cfg *Config, path string) error {
 	if len(fc.DHTBootstrapPeers) > 0 {
 		cfg.DHTBootstrapPeers = fc.DHTBootstrapPeers
 	}
+	applyString(&cfg.DefaultAdminPeerID, fc.DefaultAdminPeerID)
+	applyUint32(&cfg.DefaultSpaceID, fc.DefaultSpaceID)
 	return nil
 }
 
@@ -270,6 +278,8 @@ func applyEnv(cfg *Config) {
 	if raw := os.Getenv("MESHSERVER_DHT_BOOTSTRAP_PEERS"); raw != "" {
 		cfg.DHTBootstrapPeers = splitList(raw)
 	}
+	applyEnvString("MESHSERVER_DEFAULT_ADMIN_PEER_ID", &cfg.DefaultAdminPeerID)
+	applyEnvUint32("MESHSERVER_DEFAULT_SPACE_ID", &cfg.DefaultSpaceID)
 }
 
 func applyString(dst *string, src *string) {

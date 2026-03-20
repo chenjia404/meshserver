@@ -101,6 +101,10 @@ func (a *App) Start(ctx context.Context) error {
 		return err
 	}
 
+	if err := store.BootstrapDefaultAdmin(ctx, a.cfg.DefaultAdminPeerID, a.cfg.DefaultSpaceID, nodeRecord.ID); err != nil {
+		return err
+	}
+
 	localBlobStore := storage.NewLocalBlobStore(a.cfg.BlobRoot)
 	blobService := media.NewBlobService(store, store, localBlobStore, a.cfg.MaxUploadBytes)
 	mediaService := service.NewMediaService(blobService, store)
