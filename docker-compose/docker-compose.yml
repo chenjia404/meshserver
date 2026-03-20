@@ -27,7 +27,7 @@ services:
       MESHSERVER_MYSQL_DSN: "${MYSQL_USER:-meshserver}:${MYSQL_PASSWORD:-meshserver}@tcp(mysql:3306)/${MYSQL_DATABASE:-meshserver}?parseTime=true&multiStatements=true&charset=utf8mb4&collation=utf8mb4_unicode_ci"
       MESHSERVER_MYSQL_ADMIN_DSN: "root:${MYSQL_ROOT_PASSWORD:-meshserver_root}@tcp(mysql:3306)/mysql?parseTime=true&multiStatements=true&charset=utf8mb4&collation=utf8mb4_unicode_ci"
       MESHSERVER_HTTP_LISTEN_ADDR: ":8080"
-      MESHSERVER_LIBP2P_LISTEN_ADDRS: "/ip4/0.0.0.0/tcp/4003"
+      MESHSERVER_LIBP2P_LISTEN_ADDRS: "/ip4/0.0.0.0/tcp/4003,/ip4/0.0.0.0/udp/4003/quic-v1"
       MESHSERVER_LIBP2P_PROTOCOL_ID: "/meshserver/session/1.0.0"
       MESHSERVER_NODE_KEY_PATH: "/app/data/config/node.key"
       MESHSERVER_BLOB_ROOT: "/app/data/blobs"
@@ -41,6 +41,7 @@ services:
     ports:
       - "${MESHSERVER_HTTP_PORT:-8080}:8080"
       - "${MESHSERVER_LIBP2P_PORT:-4001}:4003/tcp"
+      - "${MESHSERVER_LIBP2P_PORT:-4001}:4003/udp"
     volumes:
       - ./data/blobs:/app/data/blobs
       - ./data/logs:/app/data/logs
