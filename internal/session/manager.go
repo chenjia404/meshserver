@@ -71,20 +71,29 @@ func NewManager(logger *slog.Logger, authService *auth.Service, users repository
 		nodePeerID:        nodePeerID,
 		nodeID:              nodeID,
 		blobURLBase:         blobURLBase,
-		globalAdminPeerID:   strings.TrimSpace(globalAdminPeerID),
+		globalAdminPeerID:   trimPeerIDForCompare(globalAdminPeerID),
 		subscriptions:       make(map[uint32]map[*ConnSession]struct{}),
 	}
 }
 
+func trimPeerIDForCompare(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		s = strings.TrimSpace(s[1 : len(s)-1])
+	}
+	return s
+}
+
 func (m *Manager) isGlobalAdmin(clientPeerID string) bool {
-	if m.globalAdminPeerID == "" {
+	cfgRaw := trimPeerIDForCompare(m.globalAdminPeerID)
+	if cfgRaw == "" {
 		return false
 	}
-	cfgID, err := peer.Decode(m.globalAdminPeerID)
+	cfgID, err := peer.Decode(cfgRaw)
 	if err != nil {
 		return false
 	}
-	userID, err := peer.Decode(strings.TrimSpace(clientPeerID))
+	userID, err := peer.Decode(trimPeerIDForCompare(clientPeerID))
 	if err != nil {
 		return false
 	}

@@ -36,8 +36,9 @@ services:
       MESHSERVER_CONFIG_FILE: "/app/data/config/meshserver.json"
       MESHSERVER_BLOB_URL_BASE: "/blobs/"
       MESHSERVER_MYSQL_SERVER_PUB_KEY_PATH: "/var/lib/mysql/public_key.pem"
-      MESHSERVER_DEFAULT_ADMIN_PEER_ID: ""
-      MESHSERVER_DEFAULT_SPACE_ID: 1
+      # 勿寫死空字串，否則會覆蓋 .env；未設定時為空
+      MESHSERVER_DEFAULT_ADMIN_PEER_ID: ${MESHSERVER_DEFAULT_ADMIN_PEER_ID:-}
+      MESHSERVER_DEFAULT_SPACE_ID: ${MESHSERVER_DEFAULT_SPACE_ID:-1}
     ports:
       - "${MESHSERVER_HTTP_PORT:-8080}:8080"
       - "${MESHSERVER_LIBP2P_PORT:-4001}:4003/tcp"
