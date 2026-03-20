@@ -194,7 +194,7 @@ func (s *Store) CreateChannel(ctx context.Context, in repository.CreateChannelIn
 	`, []any{in.SpaceID}, &serverRow); err != nil {
 		return nil, fmt.Errorf("load server for channel creation: %w", err)
 	}
-	if !serverRow.AllowChannelCreation {
+	if !serverRow.AllowChannelCreation && !in.BypassSpaceChannelCreationPolicy {
 		return nil, fmt.Errorf("channel creation disabled for server")
 	}
 

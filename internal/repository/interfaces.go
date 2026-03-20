@@ -119,6 +119,9 @@ type CreateChannelInput struct {
 	Description     string
 	Visibility      space.Visibility
 	SlowModeSeconds uint32
+	// BypassSpaceChannelCreationPolicy is set by the session layer for the site-wide admin (MESHSERVER_DEFAULT_ADMIN_PEER_ID)
+	// so they can create channels when they are owner/admin even if allow_channel_creation is off on the space.
+	BypassSpaceChannelCreationPolicy bool
 }
 
 // CreateSpaceInput describes a new space to create.

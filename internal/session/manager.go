@@ -298,13 +298,14 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		if !m.isGlobalAdmin(sess.authResult.User.PeerID) {
 			return fmt.Errorf("create space permission required")
 		}
+		// Only the site-wide admin can create spaces; they become owner and always get allow_channel_creation.
 		item, err := m.spaces.CreateSpace(ctx, repository.CreateSpaceInput{
 			HostNodeID:           m.nodeID,
 			CreatorUserID:        sess.authResult.User.ID,
 			Name:                 req.Name,
 			Description:          req.Description,
 			Visibility:           toDomainVisibility(req.Visibility),
-			AllowChannelCreation: req.AllowChannelCreation,
+			AllowChannelCreation: true,
 		})
 		if err != nil {
 			return err
@@ -342,6 +343,9 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		canCreateGroup, err := m.spaces.CanCreateGroup(ctx, req.SpaceId, sess.authResult.User.ID)
 		if err != nil {
 			return err
+		}
+		if m.isGlobalAdmin(sess.authResult.User.PeerID) && (role == space.RoleOwner || role == space.RoleAdmin) {
+			canCreateGroup = true
 		}
 		return sess.write(sessionv1.MsgType_GET_CREATE_GROUP_PERMISSIONS_RESP, env.RequestId, &sessionv1.GetCreateGroupPermissionsResp{
 			Ok:             true,
@@ -607,13 +611,14 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 			return err
 		}
 		item, err := m.channels.CreateChannel(ctx, repository.CreateChannelInput{
-			SpaceID:         req.SpaceId,
-			CreatorUserID:   sess.authResult.User.ID,
-			Type:            channel.TypeSpace,
-			Name:            req.Name,
-			Description:     req.Description,
-			Visibility:      toDomainVisibility(req.Visibility),
-			SlowModeSeconds: req.SlowModeSeconds,
+			SpaceID:                          req.SpaceId,
+			CreatorUserID:                    sess.authResult.User.ID,
+			Type:                             channel.TypeSpace,
+			Name:                             req.Name,
+			Description:                      req.Description,
+			Visibility:                       toDomainVisibility(req.Visibility),
+			SlowModeSeconds:                  req.SlowModeSeconds,
+			BypassSpaceChannelCreationPolicy: m.isGlobalAdmin(sess.authResult.User.PeerID),
 		})
 		if err != nil {
 			return err
@@ -631,13 +636,14 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 			return err
 		}
 		item, err := m.channels.CreateChannel(ctx, repository.CreateChannelInput{
-			SpaceID:         req.SpaceId,
-			CreatorUserID:   sess.authResult.User.ID,
-			Type:            channel.TypeBroadcast,
-			Name:            req.Name,
-			Description:     req.Description,
-			Visibility:      toDomainVisibility(req.Visibility),
-			SlowModeSeconds: req.SlowModeSeconds,
+			SpaceID:                          req.SpaceId,
+			CreatorUserID:                    sess.authResult.User.ID,
+			Type:                             channel.TypeBroadcast,
+			Name:                             req.Name,
+			Description:                      req.Description,
+			Visibility:                       toDomainVisibility(req.Visibility),
+			SlowModeSeconds:                  req.SlowModeSeconds,
+			BypassSpaceChannelCreationPolicy: m.isGlobalAdmin(sess.authResult.User.PeerID),
 		})
 		if err != nil {
 			return err
