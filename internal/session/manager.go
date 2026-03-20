@@ -212,13 +212,17 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		if err != nil {
 			return err
 		}
+		spaces, err := m.spaceSummariesForViewer(ctx, servers, sess.authResult.User.ID, sess.authResult.User.PeerID)
+		if err != nil {
+			return err
+		}
 		return sess.write(sessionv1.MsgType_AUTH_RESULT, env.RequestId, &sessionv1.AuthResult{
 			Ok:          true,
 			SessionId:   sess.authResult.SessionID,
 			UserId:      sess.authResult.User.UserID,
 			DisplayName: sess.authResult.User.DisplayName,
 			Message:     sess.authResult.Message,
-			Spaces:      toSpaceSummaries(servers),
+			Spaces:      spaces,
 		})
 	case sessionv1.MsgType_PING:
 		var ping sessionv1.Ping
@@ -238,8 +242,12 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		if err != nil {
 			return err
 		}
+		spaces, err := m.spaceSummariesForViewer(ctx, servers, sess.authResult.User.ID, sess.authResult.User.PeerID)
+		if err != nil {
+			return err
+		}
 		return sess.write(sessionv1.MsgType_LIST_SPACES_RESP, env.RequestId, &sessionv1.ListSpacesResp{
-			Spaces: toSpaceSummaries(servers),
+			Spaces: spaces,
 		})
 	case sessionv1.MsgType_LIST_CHANNELS_REQ:
 		var req sessionv1.ListChannelsReq
@@ -310,10 +318,14 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		if err != nil {
 			return err
 		}
+		sum, err := m.spaceSummaryForViewer(ctx, item, sess.authResult.User.ID, sess.authResult.User.PeerID)
+		if err != nil {
+			return err
+		}
 		return sess.write(sessionv1.MsgType_CREATE_SPACE_RESP, env.RequestId, &sessionv1.CreateSpaceResp{
 			Ok:      true,
 			SpaceId: item.ID,
-			Space:   toSpaceSummary(item),
+			Space:   sum,
 			Message: "created",
 		})
 	case sessionv1.MsgType_GET_CREATE_SPACE_PERMISSIONS_REQ:
@@ -347,10 +359,14 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		if m.isGlobalAdmin(sess.authResult.User.PeerID) && (role == space.RoleOwner || role == space.RoleAdmin) {
 			canCreateGroup = true
 		}
+		spaceSum, err := m.spaceSummaryForViewer(ctx, spaceItem, sess.authResult.User.ID, sess.authResult.User.PeerID)
+		if err != nil {
+			return err
+		}
 		return sess.write(sessionv1.MsgType_GET_CREATE_GROUP_PERMISSIONS_RESP, env.RequestId, &sessionv1.GetCreateGroupPermissionsResp{
 			Ok:             true,
 			SpaceId:        req.SpaceId,
-			Space:          toSpaceSummary(spaceItem),
+			Space:          spaceSum,
 			Role:           toProtoMemberRole(role),
 			CanCreateGroup: canCreateGroup,
 			Message:        "ok",
@@ -491,10 +507,14 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		if err != nil {
 			return err
 		}
+		sum, err := m.spaceSummaryForViewer(ctx, item, sess.authResult.User.ID, sess.authResult.User.PeerID)
+		if err != nil {
+			return err
+		}
 		return sess.write(sessionv1.MsgType_JOIN_SPACE_RESP, env.RequestId, &sessionv1.JoinSpaceResp{
 			Ok:      true,
 			SpaceId: req.SpaceId,
-			Space:   toSpaceSummary(item),
+			Space:   sum,
 			Message: "joined",
 		})
 	case sessionv1.MsgType_INVITE_SPACE_MEMBER_REQ:
@@ -517,11 +537,15 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		if err != nil {
 			return err
 		}
+		sum, err := m.spaceSummaryForViewer(ctx, item, sess.authResult.User.ID, sess.authResult.User.PeerID)
+		if err != nil {
+			return err
+		}
 		return sess.write(sessionv1.MsgType_INVITE_SPACE_MEMBER_RESP, env.RequestId, &sessionv1.InviteSpaceMemberResp{
 			Ok:           true,
 			SpaceId:      req.SpaceId,
 			TargetUserId: req.TargetUserId,
-			Space:        toSpaceSummary(item),
+			Space:        sum,
 			Message:      "invited",
 		})
 	case sessionv1.MsgType_KICK_SPACE_MEMBER_REQ:
@@ -544,11 +568,15 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		if err != nil {
 			return err
 		}
+		sum, err := m.spaceSummaryForViewer(ctx, item, sess.authResult.User.ID, sess.authResult.User.PeerID)
+		if err != nil {
+			return err
+		}
 		return sess.write(sessionv1.MsgType_KICK_SPACE_MEMBER_RESP, env.RequestId, &sessionv1.KickSpaceMemberResp{
 			Ok:           true,
 			SpaceId:      req.SpaceId,
 			TargetUserId: req.TargetUserId,
-			Space:        toSpaceSummary(item),
+			Space:        sum,
 			Message:      "kicked",
 		})
 	case sessionv1.MsgType_BAN_SPACE_MEMBER_REQ:
@@ -571,11 +599,15 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		if err != nil {
 			return err
 		}
+		sum, err := m.spaceSummaryForViewer(ctx, item, sess.authResult.User.ID, sess.authResult.User.PeerID)
+		if err != nil {
+			return err
+		}
 		return sess.write(sessionv1.MsgType_BAN_SPACE_MEMBER_RESP, env.RequestId, &sessionv1.BanSpaceMemberResp{
 			Ok:           true,
 			SpaceId:      req.SpaceId,
 			TargetUserId: req.TargetUserId,
-			Space:        toSpaceSummary(item),
+			Space:        sum,
 			Message:      "banned",
 		})
 	case sessionv1.MsgType_UNBAN_SPACE_MEMBER_REQ:
@@ -598,11 +630,15 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		if err != nil {
 			return err
 		}
+		sum, err := m.spaceSummaryForViewer(ctx, item, sess.authResult.User.ID, sess.authResult.User.PeerID)
+		if err != nil {
+			return err
+		}
 		return sess.write(sessionv1.MsgType_UNBAN_SPACE_MEMBER_RESP, env.RequestId, &sessionv1.UnbanSpaceMemberResp{
 			Ok:           true,
 			SpaceId:      req.SpaceId,
 			TargetUserId: req.TargetUserId,
-			Space:        toSpaceSummary(item),
+			Space:        sum,
 			Message:      "unbanned",
 		})
 	case sessionv1.MsgType_CREATE_GROUP_REQ:
@@ -793,15 +829,29 @@ func (s *ConnSession) writeError(requestID string, code uint32, message string) 
 	})
 }
 
-func toSpaceSummaries(items []*space.Space) []*sessionv1.SpaceSummary {
-	out := make([]*sessionv1.SpaceSummary, 0, len(items))
-	for _, item := range items {
-		out = append(out, toSpaceSummary(item))
+// effectiveAllowChannelCreation is the flag shown to the viewer: DB value, or true for site-wide admin acting as owner/admin.
+func (m *Manager) effectiveAllowChannelCreation(ctx context.Context, item *space.Space, userID uint64, userPeerID string) (bool, error) {
+	if item.AllowChannelCreation {
+		return true, nil
 	}
-	return out
+	if !m.isGlobalAdmin(userPeerID) {
+		return false, nil
+	}
+	role, err := m.spaces.GetMemberRole(ctx, item.ID, userID)
+	if err != nil {
+		if err == repository.ErrNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+	return role == space.RoleOwner || role == space.RoleAdmin, nil
 }
 
-func toSpaceSummary(item *space.Space) *sessionv1.SpaceSummary {
+func (m *Manager) spaceSummaryForViewer(ctx context.Context, item *space.Space, userID uint64, userPeerID string) (*sessionv1.SpaceSummary, error) {
+	allow, err := m.effectiveAllowChannelCreation(ctx, item, userID, userPeerID)
+	if err != nil {
+		return nil, err
+	}
 	return &sessionv1.SpaceSummary{
 		SpaceId:              item.ID,
 		Name:                 item.Name,
@@ -809,8 +859,20 @@ func toSpaceSummary(item *space.Space) *sessionv1.SpaceSummary {
 		Description:          item.Description,
 		Visibility:           toVisibility(item.Visibility),
 		MemberCount:          item.MemberCount,
-		AllowChannelCreation: item.AllowChannelCreation,
+		AllowChannelCreation: allow,
+	}, nil
+}
+
+func (m *Manager) spaceSummariesForViewer(ctx context.Context, items []*space.Space, userID uint64, userPeerID string) ([]*sessionv1.SpaceSummary, error) {
+	out := make([]*sessionv1.SpaceSummary, 0, len(items))
+	for _, item := range items {
+		sum, err := m.spaceSummaryForViewer(ctx, item, userID, userPeerID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, sum)
 	}
+	return out, nil
 }
 
 func toChannelSummary(item *channel.Channel) *sessionv1.ChannelSummary {
