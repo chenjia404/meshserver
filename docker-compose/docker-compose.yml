@@ -10,8 +10,8 @@ services:
       MYSQL_USER: ${MYSQL_USER:-meshserver}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-meshserver}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-meshserver_root}
-    ports:
-      - "${MYSQL_PORT:-3306}:3306"
+    #ports:
+    # - "${MYSQL_PORT:-3306}:3306"
     volumes:
       - ./data/mysql:/var/lib/mysql
 
