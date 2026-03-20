@@ -13,8 +13,8 @@ import (
 
 // BootstrapDefaultAdmin ensures the user for adminPeerID exists and has admin (or owner) role in targetSpaceID.
 // When targetSpaceID is 0, it defaults to 1.
-// If the space is missing, only space id 1 may be auto-created when the servers table is empty (first deploy).
-func (s *Store) BootstrapDefaultAdmin(ctx context.Context, adminPeerID string, targetSpaceID uint32, hostNodeID uint64) error {
+// Does not create any space: if the space does not exist yet, bootstrap is skipped (restart after the space exists).
+func (s *Store) BootstrapDefaultAdmin(ctx context.Context, adminPeerID string, targetSpaceID uint32) error {
 	adminPeerID = strings.TrimSpace(adminPeerID)
 	if adminPeerID == "" {
 		return nil
@@ -36,35 +36,10 @@ func (s *Store) BootstrapDefaultAdmin(ctx context.Context, adminPeerID string, t
 	case err == nil:
 		return s.ensureAdminMembership(ctx, targetSpaceID, usr.ID)
 	case err == repository.ErrNotFound:
-		return s.ensureDefaultSpace(ctx, targetSpaceID, hostNodeID, usr.ID)
+		return nil
 	default:
 		return fmt.Errorf("bootstrap default admin: load space: %w", err)
 	}
-}
-
-func (s *Store) ensureDefaultSpace(ctx context.Context, targetSpaceID uint32, hostNodeID uint64, creatorUserID uint64) error {
-	if targetSpaceID != 1 {
-		return fmt.Errorf("bootstrap default admin: space %d not found", targetSpaceID)
-	}
-	var n uint64
-	if err := s.db.GetContext(ctx, &n, `SELECT COUNT(1) FROM servers WHERE status = 1`); err != nil {
-		return fmt.Errorf("bootstrap default admin: count spaces: %w", err)
-	}
-	if n > 0 {
-		return fmt.Errorf("bootstrap default admin: space 1 not found but other spaces exist")
-	}
-	_, err := s.CreateSpace(ctx, repository.CreateSpaceInput{
-		HostNodeID:           hostNodeID,
-		CreatorUserID:        creatorUserID,
-		Name:                 "Default",
-		Description:          "",
-		Visibility:           space.VisibilityPublic,
-		AllowChannelCreation: true,
-	})
-	if err != nil {
-		return fmt.Errorf("bootstrap default admin: create default space: %w", err)
-	}
-	return nil
 }
 
 func (s *Store) ensureAdminMembership(ctx context.Context, targetSpaceID uint32, userID uint64) error {
