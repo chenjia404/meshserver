@@ -3,11 +3,14 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -60,10 +63,20 @@ func NewHTTPServer(cfg *config.Config, logger *slog.Logger, hooks StatusHooks) *
 	}
 
 	if hooks.ServeBlobRoutes && hooks.BlobRoot != "" {
+		blobRoot := hooks.BlobRoot
 		mux.Handle("/blobs/", http.StripPrefix("/blobs/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			cleanPath := path.Clean("/" + strings.TrimPrefix(r.URL.Path, "/"))
-			target := path.Join(hooks.BlobRoot, strings.TrimPrefix(cleanPath, "/"))
-			http.ServeFile(w, r, target)
+			target, err := resolveBlobFilePath(blobRoot, r.URL.Path)
+			switch {
+			case errors.Is(err, errBlobPathEmpty):
+				http.NotFound(w, r)
+			case errors.Is(err, errBlobOutsideRoot):
+				http.Error(w, "forbidden", http.StatusForbidden)
+			case err != nil:
+				logger.Error("blob path resolve failed", "error", err)
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+			default:
+				http.ServeFile(w, r, target)
+			}
 		})))
 	}
 
@@ -85,6 +98,37 @@ func loggingMiddleware(logger *slog.Logger, next http.Handler) http.Handler {
 		logger.Info("http request", "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
 		next.ServeHTTP(w, r)
 	})
+}
+
+var (
+	errBlobPathEmpty   = errors.New("blob path empty")
+	errBlobOutsideRoot = errors.New("path outside blob root")
+)
+
+// resolveBlobFilePath maps a URL path (after /blobs/ strip) to an absolute file path under blobRoot.
+func resolveBlobFilePath(blobRoot, urlPath string) (string, error) {
+	rootAbs, err := filepath.Abs(filepath.Clean(blobRoot))
+	if err != nil {
+		return "", fmt.Errorf("blob root: %w", err)
+	}
+	p := path.Clean("/" + strings.TrimPrefix(urlPath, "/"))
+	rel := strings.TrimPrefix(p, "/")
+	if rel == "" || rel == "." {
+		return "", errBlobPathEmpty
+	}
+	joined := filepath.Join(rootAbs, filepath.FromSlash(rel))
+	targetAbs, err := filepath.Abs(joined)
+	if err != nil {
+		return "", err
+	}
+	relFromRoot, err := filepath.Rel(rootAbs, targetAbs)
+	if err != nil {
+		return "", errBlobOutsideRoot
+	}
+	if relFromRoot == ".." || strings.HasPrefix(relFromRoot, ".."+string(filepath.Separator)) {
+		return "", errBlobOutsideRoot
+	}
+	return targetAbs, nil
 }
 
 func writeJSON(w http.ResponseWriter, code int, payload any) {
