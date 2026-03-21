@@ -13,6 +13,12 @@ import (
 
 const currentEnvelopeVersion = 1
 
+// MaxEnvelopeBytes caps a single length-prefixed envelope payload to limit memory use (DoS).
+const MaxEnvelopeBytes = 8 << 20 // 8 MiB
+
+// ErrEnvelopeTooLarge is returned when an envelope payload exceeds MaxEnvelopeBytes.
+var ErrEnvelopeTooLarge = fmt.Errorf("envelope payload exceeds %d bytes", MaxEnvelopeBytes)
+
 // EnvelopeCodec reads and writes length-prefixed protobuf envelopes.
 type EnvelopeCodec struct{}
 
@@ -21,6 +27,9 @@ func ReadEnvelope(r io.Reader) (*sessionv1.Envelope, error) {
 	var length uint32
 	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
 		return nil, err
+	}
+	if length > MaxEnvelopeBytes {
+		return nil, fmt.Errorf("%w: got %d", ErrEnvelopeTooLarge, length)
 	}
 	payload := make([]byte, length)
 	if _, err := io.ReadFull(r, payload); err != nil {
@@ -38,6 +47,9 @@ func WriteEnvelope(w io.Writer, env *sessionv1.Envelope) error {
 	payload, err := proto.Marshal(env)
 	if err != nil {
 		return fmt.Errorf("marshal envelope: %w", err)
+	}
+	if len(payload) > MaxEnvelopeBytes {
+		return fmt.Errorf("marshal envelope: %w", ErrEnvelopeTooLarge)
 	}
 	if err := binary.Write(w, binary.BigEndian, uint32(len(payload))); err != nil {
 		return err
