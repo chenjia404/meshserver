@@ -108,7 +108,7 @@ func (a *App) Start(ctx context.Context) error {
 	}
 
 	localBlobStore := storage.NewLocalBlobStore(a.cfg.BlobRoot)
-	blobService := media.NewBlobService(store, store, localBlobStore, a.cfg.MaxUploadBytes)
+	blobService := media.NewBlobService(store, store, localBlobStore, a.cfg.MaxUploadBytes, a.cfg.IPFS)
 	mediaService := service.NewMediaService(blobService, store)
 	directoryService := service.NewDirectoryService(store, store)
 	messagingService := service.NewMessagingService(a.cfg, store, store, store, mediaService)

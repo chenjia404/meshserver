@@ -417,6 +417,8 @@ message MediaFile {
   string mime_type = 6;
   uint64 size = 7;
   bytes inline_data = 8;
+  // 檔案類附件：與嵌入式 IPFS 相同之 UnixFS CIDv1（參見設定 ipfs.chunker / ipfs.hash_function 等）；圖片為空。
+  string file_cid = 9;
 }
 
 message MessageContent {

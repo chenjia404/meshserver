@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"meshserver/internal/config"
 	"meshserver/internal/repository"
 	"meshserver/internal/storage"
 )
@@ -27,15 +28,18 @@ type BlobService struct {
 	mediaRepo      repository.MediaRepository
 	storage        *storage.LocalBlobStore
 	maxUploadBytes int64
+	ipfsCfg        config.IPFSConfig
 }
 
 // NewBlobService creates a blob service bound to local storage.
-func NewBlobService(blobs repository.BlobRepository, mediaRepo repository.MediaRepository, storage *storage.LocalBlobStore, maxUploadBytes int64) *BlobService {
+// ipfsCfg 用於計算檔案附件之 UnixFS CID（與設定 ipfs.chunker、hash_function 等一致）。
+func NewBlobService(blobs repository.BlobRepository, mediaRepo repository.MediaRepository, storage *storage.LocalBlobStore, maxUploadBytes int64, ipfsCfg config.IPFSConfig) *BlobService {
 	return &BlobService{
 		blobs:          blobs,
 		mediaRepo:      mediaRepo,
 		storage:        storage,
 		maxUploadBytes: maxUploadBytes,
+		ipfsCfg:        ipfsCfg,
 	}
 }
 
@@ -88,6 +92,14 @@ func (s *BlobService) Put(ctx context.Context, r io.Reader, meta PutBlobInput) (
 	}
 
 	width, height := detectImageSize(payload, meta.Kind)
+	var fileCID string
+	if meta.Kind == KindFile {
+		cidStr, err := ComputeUnixFSFileCID(&s.ipfsCfg, payload)
+		if err != nil {
+			return nil, fmt.Errorf("compute file cid: %w", err)
+		}
+		fileCID = cidStr
+	}
 	mediaObject, err := s.mediaRepo.CreateMedia(ctx, repository.CreateMediaInput{
 		MediaID:      newMediaID(),
 		BlobID:       blob.ID,
@@ -98,6 +110,7 @@ func (s *BlobService) Put(ctx context.Context, r io.Reader, meta PutBlobInput) (
 		Width:        width,
 		Height:       height,
 		CreatedBy:    meta.CreatedBy,
+		FileCID:      fileCID,
 	})
 	if err != nil {
 		return nil, err

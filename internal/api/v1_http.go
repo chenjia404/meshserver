@@ -293,17 +293,22 @@ func handleV1UploadMedia(w http.ResponseWriter, r *http.Request, logger *slog.Lo
 		writeJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	out := map[string]any{
 		"ok":            true,
 		"media_id":      obj.MediaID,
 		"blob_id":       obj.BlobID,
-		"sha256":        obj.SHA256,
 		"mime_type":     obj.MIMEType,
 		"size":          obj.Size,
 		"original_name": obj.OriginalName,
 		"kind":          string(kind),
 		"message":       "stored",
-	})
+	}
+	if kind == media.KindFile {
+		out["file_cid"] = obj.FileCID
+	} else {
+		out["sha256"] = obj.SHA256
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 type sendMessageHTTPBody struct {

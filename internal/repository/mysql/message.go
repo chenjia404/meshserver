@@ -43,6 +43,7 @@ type attachmentRow struct {
 	Height       uint32     `db:"height"`
 	CreatedBy    uint64     `db:"created_by"`
 	CreatedAt    time.Time  `db:"created_at"`
+	FileCID      string     `db:"file_cid"`
 	SHA256       string     `db:"sha256"`
 	StoragePath  string     `db:"storage_path"`
 }
@@ -379,6 +380,7 @@ func (s *Store) hydrateMessages(ctx context.Context, rows []messageRow) ([]*mess
 			mo.kind,
 			COALESCE(mo.original_name, '') AS original_name,
 			COALESCE(mo.mime_type, '') AS mime_type,
+			COALESCE(mo.file_cid, '') AS file_cid,
 			mo.size,
 			COALESCE(mo.width, 0) AS width,
 			COALESCE(mo.height, 0) AS height,
@@ -419,6 +421,7 @@ func (s *Store) hydrateMessages(ctx context.Context, rows []messageRow) ([]*mess
 			Height:       row.Height,
 			CreatedBy:    row.CreatedBy,
 			CreatedAt:    row.CreatedAt,
+			FileCID:      row.FileCID,
 			SHA256:       row.SHA256,
 			StoragePath:  row.StoragePath,
 		}

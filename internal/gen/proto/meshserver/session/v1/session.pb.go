@@ -697,6 +697,7 @@ type MediaFile struct {
 	MimeType   string `protobuf:"bytes,6,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"`
 	Size       uint64 `protobuf:"varint,7,opt,name=size,proto3" json:"size,omitempty"`
 	InlineData []byte `protobuf:"bytes,8,opt,name=inline_data,json=inlineData,proto3" json:"inline_data,omitempty"`
+	FileCid    string `protobuf:"bytes,9,opt,name=file_cid,json=fileCid,proto3" json:"file_cid,omitempty"`
 }
 
 func (m *MediaFile) Reset()         { *m = MediaFile{} }

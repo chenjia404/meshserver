@@ -167,7 +167,7 @@ func Load() (*Config, error) {
 	}
 
 	applyEnv(cfg)
-	if err := cfg.IPFS.normalize(); err != nil {
+	if err := cfg.IPFS.Normalize(); err != nil {
 		return nil, err
 	}
 	if err := cfg.Validate(); err != nil {
@@ -224,7 +224,8 @@ func (c *Config) IPFSBaseDir() string {
 	return filepath.Join(filepath.Dir(c.BlobRoot), "ipfs")
 }
 
-func (c *IPFSConfig) normalize() error {
+// Normalize 套用 ipfs 區塊預設值（chunker、hash、上傳上限等）。
+func (c *IPFSConfig) Normalize() error {
 	if c.DatastoreType == "" {
 		c.DatastoreType = "leveldb"
 	}

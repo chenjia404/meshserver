@@ -72,6 +72,8 @@ type MediaObject struct {
 	CreatedAt    time.Time `db:"created_at"`
 	SHA256       string    `db:"sha256"`
 	StoragePath  string    `db:"storage_path"`
+	// FileCID 僅 kind=file 時有值：UnixFS CID（與設定 ipfs.* 一致）。
+	FileCID string `db:"file_cid"`
 }
 
 // UserRepository owns user rows.
@@ -189,6 +191,7 @@ type CreateMediaInput struct {
 	Width        *uint32
 	Height       *uint32
 	CreatedBy    uint64
+	FileCID      string // kind=file 時為 UnixFS CID；圖片為空
 }
 
 // MediaRepository owns logical media objects.

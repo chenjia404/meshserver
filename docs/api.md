@@ -246,13 +246,14 @@ Authorization: Bearer <access_token>
 | `inline_data` | string | Base64（JSON 對 `[]byte` 序列化；僅在請求內嵌或部分回應出現） |
 | `original_name` | string | 原始檔名 |
 
-`MediaFile`：
+`MediaFile`（**檔案類**訊息附件）：
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | `media_id` | string | |
 | `blob_id` | string | |
-| `sha256` | string | |
+| `sha256` | string | **圖片**沿用內容 SHA-256 hex；**檔案**為空（內容識別改為 `file_cid`） |
+| `file_cid` | string | **檔案**之 IPFS UnixFS **CIDv1**（與設定檔 `ipfs.chunker`、`ipfs.hash_function`、`ipfs.raw_leaves`、`ipfs.cid_version` 一致；與嵌入式 IPFS `/api/ipfs/add` 同參數時可對齊）；**圖片**為空 |
 | `file_name` | string | 檔名（proto 欄位名） |
 | `url` | string | 可訪問 URL |
 | `mime_type` | string | |
@@ -937,7 +938,8 @@ Authorization: Bearer <access_token>
 | `ok` | bool | `true` |
 | `media_id` | string | 供 `SendMessage` 引用 |
 | `blob_id` | string | |
-| `sha256` | string | |
+| `sha256` | string | 僅 **`kind=image`** 時出現（內容 SHA-256 hex） |
+| `file_cid` | string | 僅 **`kind=file`** 時出現（UnixFS CID，參數見設定 `ipfs.*`） |
 | `mime_type` | string | |
 | `size` | number | |
 | `original_name` | string | |

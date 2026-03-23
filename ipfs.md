@@ -967,3 +967,5 @@ If a boxo API is uncertain, isolate it behind small wrapper functions and leave 
 本倉庫已實作與上文一致的嵌入式 IPFS 模組（`internal/ipfsnode`、`internal/ipfsstore`、`internal/ipfsunixfs`、`internal/ipfsgateway`、`internal/ipfspin`），並在 `internal/app` 於 **`ipfs.enabled`** 為真時以共用 libp2p host + DHT 初始化；HTTP 由 `internal/api/ipfs_http.go` 註冊 **`/ipfs/`** 與 **`/api/ipfs/*`**。
 
 設定檔（JSON）可含頂層 `ipfs` 物件；**`root`** 為資料根目錄（內含 `datastore/`、`pins.json`），留空則預設為 **`<blob_root 所在目錄的上一層>/ipfs`**。亦支援環境變數 **`MESHSERVER_IPFS_ENABLED`**、**`MESHSERVER_IPFS_ROOT`**、**`MESHSERVER_IPFS_GATEWAY_ENABLED`**、**`MESHSERVER_IPFS_GATEWAY_WRITABLE`**、**`MESHSERVER_IPFS_API_ENABLED`** 等（完整列表見 `internal/config/config.go` 中 `applyEnv`）。
+
+**群聊檔案附件**：`kind=file` 的媒體在資料庫與 API 中另存 **`file_cid`**（UnixFS CIDv1），計算方式與上述 `ipfs.chunker`、`ipfs.hash_function`、`ipfs.raw_leaves`、`ipfs.cid_version` 相同（見 `internal/media/file_cid.go`）；訊息 JSON/proto 中 **`MediaFile.sha256` 對檔案為空**，請以 **`file_cid`** 作為檔案內容識別。

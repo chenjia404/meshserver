@@ -273,19 +273,25 @@ func (m *Manager) GetMediaForAPI(ctx context.Context, userID uint64, mediaID str
 	if err != nil {
 		return nil, err
 	}
+	mf := &sessionv1.MediaFile{
+		MediaId:    item.MediaID,
+		BlobId:     item.BlobID,
+		FileName:   item.OriginalName,
+		MimeType:   item.MIMEType,
+		Size:       item.Size,
+		InlineData: content,
+		Url:        "",
+	}
+	if item.Kind == "file" && item.FileCID != "" {
+		mf.FileCid = item.FileCID
+		mf.Sha256 = ""
+	} else {
+		mf.Sha256 = item.SHA256
+	}
 	return &sessionv1.GetMediaResp{
 		Ok:      true,
 		MediaId: mediaID,
-		File: &sessionv1.MediaFile{
-			MediaId:    item.MediaID,
-			BlobId:     item.BlobID,
-			Sha256:     item.SHA256,
-			FileName:   item.OriginalName,
-			MimeType:   item.MIMEType,
-			Size:       item.Size,
-			InlineData: content,
-			Url:        "",
-		},
+		File:    mf,
 		Message: "ok",
 	}, nil
 }
@@ -904,19 +910,25 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		if err != nil {
 			return err
 		}
+		mf := &sessionv1.MediaFile{
+			MediaId:    item.MediaID,
+			BlobId:     item.BlobID,
+			FileName:   item.OriginalName,
+			MimeType:   item.MIMEType,
+			Size:       item.Size,
+			InlineData: content,
+			Url:        "",
+		}
+		if item.Kind == "file" && item.FileCID != "" {
+			mf.FileCid = item.FileCID
+			mf.Sha256 = ""
+		} else {
+			mf.Sha256 = item.SHA256
+		}
 		return sess.write(sessionv1.MsgType_GET_MEDIA_RESP, env.RequestId, &sessionv1.GetMediaResp{
 			Ok:      true,
 			MediaId: req.MediaId,
-			File: &sessionv1.MediaFile{
-				MediaId:    item.MediaID,
-				BlobId:     item.BlobID,
-				Sha256:     item.SHA256,
-				FileName:   item.OriginalName,
-				MimeType:   item.MIMEType,
-				Size:       item.Size,
-				InlineData: content,
-				Url:        "",
-			},
+			File:    mf,
 			Message: "ok",
 		})
 	default:
@@ -1082,15 +1094,21 @@ func toMessageEvent(item *message.Message, blobURLBase string) *sessionv1.Messag
 		})
 	}
 	for _, file := range item.Content.Files {
-		content.Files = append(content.Files, &sessionv1.MediaFile{
+		mf := &sessionv1.MediaFile{
 			MediaId:  file.MediaID,
 			BlobId:   file.BlobID,
-			Sha256:   file.SHA256,
 			FileName: file.OriginalName,
 			Url:      blobURL(blobURLBase, file.StoragePath),
 			MimeType: file.MIMEType,
 			Size:     file.Size,
-		})
+		}
+		if file.FileCID != "" {
+			mf.FileCid = file.FileCID
+			mf.Sha256 = ""
+		} else {
+			mf.Sha256 = file.SHA256
+		}
+		content.Files = append(content.Files, mf)
 	}
 	return &sessionv1.MessageEvent{
 		ChannelId:    item.ChannelDBID,

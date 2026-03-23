@@ -35,7 +35,9 @@ type Attachment struct {
 	CreatedBy    uint64
 	CreatedAt    time.Time
 	SHA256       string
-	StoragePath  string
+	// FileCID 僅附件為檔案時有值（IPFS UnixFS CID）；圖片為空。
+	FileCID     string
+	StoragePath string
 }
 
 // Content is the fixed content layout supported by the first version.

@@ -59,10 +59,10 @@ func (s *Store) CreateMedia(ctx context.Context, in repository.CreateMediaInput)
 	now := s.now()
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO media_objects (
-			media_id, blob_id, kind, original_name, mime_type, size, width, height, created_by, created_at
+			media_id, blob_id, kind, original_name, mime_type, file_cid, size, width, height, created_by, created_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, in.MediaID, in.BlobID, in.Kind, nullableString(in.OriginalName), nullableString(in.MIMEType), in.Size, nullableUint32(in.Width), nullableUint32(in.Height), in.CreatedBy, now)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, in.MediaID, in.BlobID, in.Kind, nullableString(in.OriginalName), nullableString(in.MIMEType), nullableString(in.FileCID), in.Size, nullableUint32(in.Width), nullableUint32(in.Height), in.CreatedBy, now)
 	if err != nil {
 		return nil, fmt.Errorf("insert media object: %w", err)
 	}
@@ -79,6 +79,7 @@ func (s *Store) GetByMediaID(ctx context.Context, mediaID string) (*repository.M
 			mo.kind,
 			COALESCE(mo.original_name, '') AS original_name,
 			COALESCE(mo.mime_type, '') AS mime_type,
+			COALESCE(mo.file_cid, '') AS file_cid,
 			mo.size,
 			COALESCE(mo.width, 0) AS width,
 			COALESCE(mo.height, 0) AS height,
