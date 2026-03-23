@@ -164,6 +164,131 @@ func (m *Manager) SubscribeChannel(sess *ConnSession, channelID uint32) {
 }
 
 // DeliverMessage broadcasts an event to all currently subscribed sessions.
+// ListSpacesForAPI returns the same summaries as LIST_SPACES_REQ over libp2p.
+func (m *Manager) ListSpacesForAPI(ctx context.Context, userID uint64, userPeerID string) ([]*sessionv1.SpaceSummary, error) {
+	servers, err := m.directory.ListSpaces(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return m.spaceSummariesForViewer(ctx, servers, userID, userPeerID)
+}
+
+// ListChannelsForAPI returns the same summaries as LIST_CHANNELS_REQ.
+func (m *Manager) ListChannelsForAPI(ctx context.Context, userID uint64, spaceID uint32) ([]*sessionv1.ChannelSummary, error) {
+	channels, err := m.directory.ListChannels(ctx, userID, spaceID)
+	if err != nil {
+		return nil, err
+	}
+	return toChannelSummaries(channels), nil
+}
+
+// SendMessageForAPI stores a message and fans out MESSAGE_EVENT to subscribed libp2p sessions (same as SEND_MESSAGE_REQ).
+func (m *Manager) SendMessageForAPI(ctx context.Context, userID uint64, req *sessionv1.SendMessageReq) (*message.Message, error) {
+	msg, err := m.messaging.SendMessage(ctx, userID, toSendMessageInput(req))
+	if err != nil {
+		return nil, err
+	}
+	m.DeliverMessage(msg.ChannelDBID, msg)
+	return msg, nil
+}
+
+// SyncChannelForAPI returns the same messages as SYNC_CHANNEL_REQ.
+func (m *Manager) SyncChannelForAPI(ctx context.Context, userID uint64, channelID uint32, afterSeq uint64, limit uint32) ([]*sessionv1.MessageEvent, uint64, bool, error) {
+	items, nextAfterSeq, hasMore, err := m.messaging.SyncChannel(ctx, userID, channelID, afterSeq, limit)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	events := make([]*sessionv1.MessageEvent, 0, len(items))
+	for _, item := range items {
+		events = append(events, toMessageEvent(item, m.blobURLBase))
+	}
+	return events, nextAfterSeq, hasMore, nil
+}
+
+// JoinSpaceForAPI mirrors JOIN_SPACE_REQ / JOIN_SPACE_RESP.
+func (m *Manager) JoinSpaceForAPI(ctx context.Context, userID uint64, userPeerID string, spaceID uint32) (*sessionv1.SpaceSummary, error) {
+	item, err := m.spaces.JoinSpace(ctx, spaceID, userID)
+	if err != nil {
+		return nil, err
+	}
+	return m.spaceSummaryForViewer(ctx, item, userID, userPeerID)
+}
+
+// ListSpaceMembersForAPI mirrors LIST_SPACE_MEMBERS_REQ / LIST_SPACE_MEMBERS_RESP (owner or admin only).
+func (m *Manager) ListSpaceMembersForAPI(ctx context.Context, userID uint64, spaceID uint32, afterMemberID uint64, limit uint32) (*sessionv1.ListSpaceMembersResp, error) {
+	actorRole, err := m.spaces.GetMemberRole(ctx, spaceID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if actorRole != space.RoleOwner && actorRole != space.RoleAdmin {
+		return nil, ErrAdminRoleRequired
+	}
+	if limit == 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	items, err := m.spaces.ListSpaceMembers(ctx, spaceID, afterMemberID, limit+1)
+	if err != nil {
+		return nil, err
+	}
+	hasMore := uint32(len(items)) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+	resp := &sessionv1.ListSpaceMembersResp{
+		SpaceId: spaceID,
+		Members: toSpaceMemberSummaries(items),
+		HasMore: hasMore,
+	}
+	if len(items) > 0 {
+		resp.NextAfterMemberId = items[len(items)-1].MemberID
+	}
+	return resp, nil
+}
+
+// GetMediaForAPI mirrors GET_MEDIA_REQ / GET_MEDIA_RESP (channel view permission required).
+func (m *Manager) GetMediaForAPI(ctx context.Context, userID uint64, mediaID string) (*sessionv1.GetMediaResp, error) {
+	channelIDs, err := m.messages.ListChannelIDsByMediaID(ctx, mediaID)
+	if err != nil {
+		return nil, err
+	}
+	allowed := false
+	for _, channelID := range channelIDs {
+		perm, err := m.channels.GetPermission(ctx, channelID, userID)
+		if err != nil {
+			continue
+		}
+		if perm.CanView {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return nil, service.ErrForbidden
+	}
+	item, content, err := m.media.DownloadMediaByID(ctx, mediaID)
+	if err != nil {
+		return nil, err
+	}
+	return &sessionv1.GetMediaResp{
+		Ok:      true,
+		MediaId: mediaID,
+		File: &sessionv1.MediaFile{
+			MediaId:    item.MediaID,
+			BlobId:     item.BlobID,
+			Sha256:     item.SHA256,
+			FileName:   item.OriginalName,
+			MimeType:   item.MIMEType,
+			Size:       item.Size,
+			InlineData: content,
+			Url:        "",
+		},
+		Message: "ok",
+	}, nil
+}
+
 func (m *Manager) DeliverMessage(channelID uint32, msg *message.Message) {
 	event := toMessageEvent(msg, m.blobURLBase)
 	m.mu.RLock()

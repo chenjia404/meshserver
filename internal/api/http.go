@@ -27,8 +27,10 @@ type StatusHooks struct {
 }
 
 // NewHTTPServer builds the lightweight management HTTP server.
-func NewHTTPServer(cfg *config.Config, logger *slog.Logger, hooks StatusHooks) *http.Server {
+func NewHTTPServer(cfg *config.Config, logger *slog.Logger, hooks StatusHooks, authDeps AuthHTTPDeps, v1Deps V1HTTPDeps) *http.Server {
 	mux := http.NewServeMux()
+	registerV1AuthRoutes(mux, logger, cfg, authDeps)
+	registerV1APIRoutes(mux, logger, v1Deps)
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -137,4 +139,8 @@ func writeJSON(w http.ResponseWriter, code int, payload any) {
 	if err := json.NewEncoder(w).Encode(payload); err != nil {
 		_, _ = os.Stderr.WriteString(err.Error())
 	}
+}
+
+func writeJSONError(w http.ResponseWriter, code int, message string) {
+	writeJSON(w, code, map[string]string{"error": message})
 }

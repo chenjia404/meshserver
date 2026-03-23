@@ -37,6 +37,8 @@ type Config struct {
 	LogDir                 string
 	MigrationsDir          string
 	HTTPListenAddr         string
+	HTTPJWTSecret          string
+	HTTPAccessTokenTTL     time.Duration
 	ReadTimeout            time.Duration
 	WriteTimeout           time.Duration
 	HeartbeatInterval      time.Duration
@@ -75,6 +77,8 @@ type fileConfig struct {
 	LogDir                 *string  `json:"log_dir"`
 	MigrationsDir          *string  `json:"migrations_dir"`
 	HTTPListenAddr         *string  `json:"http_listen_addr"`
+	HTTPJWTSecret          *string  `json:"http_jwt_secret"`
+	HTTPAccessTokenTTL     *string  `json:"http_access_token_ttl"`
 	ReadTimeout            *string  `json:"read_timeout"`
 	WriteTimeout           *string  `json:"write_timeout"`
 	HeartbeatInterval      *string  `json:"heartbeat_interval"`
@@ -167,6 +171,8 @@ func defaults() *Config {
 		LogDir:                 filepath.Join("docker-compose", "data", "logs"),
 		MigrationsDir:          "migrations",
 		HTTPListenAddr:         ":8080",
+		HTTPJWTSecret:          "",
+		HTTPAccessTokenTTL:     24 * time.Hour,
 		ReadTimeout:            10 * time.Second,
 		WriteTimeout:           15 * time.Second,
 		HeartbeatInterval:      30 * time.Second,
@@ -218,6 +224,8 @@ func applyFile(cfg *Config, path string) error {
 	applyString(&cfg.LogDir, fc.LogDir)
 	applyString(&cfg.MigrationsDir, fc.MigrationsDir)
 	applyString(&cfg.HTTPListenAddr, fc.HTTPListenAddr)
+	applyString(&cfg.HTTPJWTSecret, fc.HTTPJWTSecret)
+	applyDuration(&cfg.HTTPAccessTokenTTL, fc.HTTPAccessTokenTTL)
 	applyDuration(&cfg.ReadTimeout, fc.ReadTimeout)
 	applyDuration(&cfg.WriteTimeout, fc.WriteTimeout)
 	applyDuration(&cfg.HeartbeatInterval, fc.HeartbeatInterval)
@@ -261,6 +269,8 @@ func applyEnv(cfg *Config) {
 	applyEnvString("MESHSERVER_LOG_DIR", &cfg.LogDir)
 	applyEnvString("MESHSERVER_MIGRATIONS_DIR", &cfg.MigrationsDir)
 	applyEnvString("MESHSERVER_HTTP_LISTEN_ADDR", &cfg.HTTPListenAddr)
+	applyEnvString("MESHSERVER_HTTP_JWT_SECRET", &cfg.HTTPJWTSecret)
+	applyEnvDuration("MESHSERVER_HTTP_ACCESS_TOKEN_TTL", &cfg.HTTPAccessTokenTTL)
 	applyEnvDuration("MESHSERVER_READ_TIMEOUT", &cfg.ReadTimeout)
 	applyEnvDuration("MESHSERVER_WRITE_TIMEOUT", &cfg.WriteTimeout)
 	applyEnvDuration("MESHSERVER_HEARTBEAT_INTERVAL", &cfg.HeartbeatInterval)

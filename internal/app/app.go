@@ -56,14 +56,6 @@ func New(cfg *config.Config) (*App, error) {
 		logCloser: closer,
 	}
 
-	app.httpServer = api.NewHTTPServer(cfg, logger, api.StatusHooks{
-		IsReady:         app.IsReady,
-		Version:         func() string { return cfg.Version },
-		ConfigSnapshot:  func() any { return cfg },
-		BlobRoot:        cfg.BlobRoot,
-		ServeBlobRoutes: cfg.ServeBlobsOverHTTP,
-	})
-
 	return app, nil
 }
 
@@ -112,7 +104,34 @@ func (a *App) Start(ctx context.Context) error {
 	messagingService := service.NewMessagingService(a.cfg, store, store, store, mediaService)
 	authService := auth.NewService(a.cfg, store, store, a.logger)
 
+	jwtSecret, err := api.ResolveHTTPJWTSecret(a.cfg)
+	if err != nil {
+		return err
+	}
+
 	a.session = session.NewManager(a.logger, authService, store, store, directoryService, messagingService, mediaService, store, store, node.PeerID, nodeRecord.ID, a.cfg.BlobURLBase, a.cfg.DefaultAdminPeerID)
+
+	a.httpServer = api.NewHTTPServer(a.cfg, a.logger, api.StatusHooks{
+		IsReady:         a.IsReady,
+		Version:         func() string { return a.cfg.Version },
+		ConfigSnapshot:  func() any { return a.cfg },
+		BlobRoot:        a.cfg.BlobRoot,
+		ServeBlobRoutes: a.cfg.ServeBlobsOverHTTP,
+	}, api.AuthHTTPDeps{
+		Service: authService,
+		NodePeerID: func() string {
+			return node.PeerID()
+		},
+		JWTSecret: jwtSecret,
+		AccessTTL: a.cfg.HTTPAccessTokenTTL,
+	}, api.V1HTTPDeps{
+		Session:        a.session,
+		Users:          store,
+		Media:          mediaService,
+		MaxUploadBytes: a.cfg.MaxUploadBytes,
+		JWTSecret:      jwtSecret,
+	})
+
 	node.SetSessionHandler(a.session.HandleStream)
 	if err := node.Start(ctx); err != nil {
 		return err
