@@ -186,12 +186,13 @@ Authorization: Bearer <access_token>
 | PUT | `/v1/channels/{channel_id}/settings/auto_delete` | `ADMIN_SET_GROUP_AUTO_DELETE_*` |
 | GET | `/v1/media/{media_id}` | `GET_MEDIA_*` |
 | POST | `/v1/media` | 上傳附件（取得 `media_id`） |
+| GET | `/v1/ws` | WebSocket：訂閱頻道後推送 **`MESSAGE_EVENT` 等價 JSON**（含完整訊息內容，見下節） |
 
 `{space_id}`、`{channel_id}` 為十進位整數；`{media_id}`、`{target_user_id}` 為字串（路徑內請 URL 編碼）。
 
-**未提供 HTTP 的 libp2p 能力**：`SUBSCRIBE_CHANNEL` / `UNSUBSCRIBE_CHANNEL` 僅綁定 libp2p stream 以接收即時 `MESSAGE_EVENT`；HTTP 客戶端請用 **`GET /v1/channels/{channel_id}/sync`** 輪詢，或自行接 WebSocket/SSE（本專案尚未實作）。
+**libp2p 與 HTTP 對照**：`SUBSCRIBE_CHANNEL` / `UNSUBSCRIBE_CHANNEL` 在 stream 上註冊即時推送；HTTP 端請使用 **`GET /v1/ws`** 送出 `subscribe` / `unsubscribe`，或僅用 **`GET /v1/channels/{channel_id}/sync`** 輪詢。
 
-未帶或無效的 Bearer：HTTP **`401`**，body `{"error":"authentication required"}`。
+未帶或無效的 Bearer：HTTP **`401`**，body `{"error":"authentication required"}`（WebSocket 升級失敗時同樣回 JSON，不升級）。
 
 ---
 
@@ -415,6 +416,57 @@ Authorization: Bearer <access_token>
 
 ---
 
+## WebSocket `GET /v1/ws`
+
+與 libp2p 上 `MESSAGE_EVENT` 使用**同一套** `toMessageEvent` 產物：推送的 JSON 內含完整 **`MessageEvent`**（文字、圖片/檔案 metadata、`url` 等），客戶端可直接解析，**無需再呼叫 sync** 取該則訊息。
+
+### 連線與認證
+
+- 使用 **`GET /v1/ws`**，Upgrade WebSocket。
+- JWT 擇一即可：
+  - 標頭 **`Authorization: Bearer <access_token>`**（部分代理支援 WS 帶標頭），或
+  - 查詢參數 **`access_token=<token>`**（瀏覽器原生 `WebSocket` 無法自訂標頭時請用此方式）。
+
+升級前校驗失敗回 **401** + JSON `{"error":"authentication required"}`（不完成 WebSocket 握手）。
+
+### 客戶端 → 伺服器（文字訊息，JSON）
+
+| `action` | 欄位 | 說明 |
+|----------|------|------|
+| `subscribe` | `channel_id`（number） | 訂閱頻道推送；須為該頻道成員，否則 `{"type":"error","error":"not a channel member"}` |
+| `unsubscribe` | `channel_id` | 取消訂閱 |
+| `ping` | — | 伺服器回 `{"type":"pong","message":"ok"}` |
+
+範例：
+
+```json
+{"action":"subscribe","channel_id":12345}
+```
+
+成功訂閱後回：`{"type":"subscribed","channel_id":12345,"message":"ok"}`（欄位以實作為準）。
+
+### 伺服器 → 客戶端（新訊息）
+
+有新訊息時推送：
+
+```json
+{
+  "type": "message_event",
+  "channel_id": 12345,
+  "event": { ... 與 proto MessageEvent / sync 中 messages[] 元素相同 ... }
+}
+```
+
+`event` 內含 `channel_id`、`message_id`、`seq`、`sender_user_id`、`message_type`、`content`（含 `text`、`images`、`files` 與 URL）、`created_at_ms` 等，與 **`GET /v1/channels/{channel_id}/sync`** 回傳的訊息物件一致。
+
+### 其它說明
+
+- 伺服器會定期發 **WebSocket Ping**；客戶端需正常回 **Pong**（瀏覽器通常自動處理）。
+- 若客戶端處理過慢，內部發送緩衝滿時可能丟棄事件並寫 log（應盡快處理 `message_event` 或斷線重連）。
+- 實作：`internal/api/ws.go`、`internal/session/realtime.go`；與 libp2p 共用 `DeliverMessage` 廣播。
+
+---
+
 ## 其他內建路由（非 v1 auth）
 
 以下路由由同一 HTTP 伺服器提供，供運維或除錯使用。
@@ -432,7 +484,7 @@ Authorization: Bearer <access_token>
 ## 相關程式位置
 
 - Challenge / 簽名 payload：`internal/auth/service.go`（`BuildChallengePayload`、`IssueChallenge`、`VerifyChallenge`）
-- HTTP 路由與 handler：`internal/api/auth_http.go`、`internal/api/v1_http.go`、`internal/api/v1_http_rest.go`
-- Session 與 libp2p 共用邏輯：`internal/session/manager.go`、`internal/session/manager_v1_rest.go`（`CreateSpaceForAPI`、`GetCreateGroupPermissionsForAPI`、成員管理等）及 `internal/session/errors.go`
+- HTTP 路由與 handler：`internal/api/auth_http.go`、`internal/api/v1_http.go`、`internal/api/v1_http_rest.go`、`internal/api/ws.go`
+- Session 與 libp2p 共用邏輯：`internal/session/manager.go`、`internal/session/manager_v1_rest.go`、`internal/session/realtime.go`（`DeliverMessage` 同時推 libp2p 與 WebSocket）
 - JWT：`internal/api/jwt.go`
 - 設定鍵與環境變數：`internal/config/config.go`

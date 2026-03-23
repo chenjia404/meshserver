@@ -53,6 +53,7 @@ type Manager struct {
 	globalAdminPeerID  string
 	mu                 sync.RWMutex
 	subscriptions      map[uint32]map[*ConnSession]struct{}
+	realtimeSubs       map[uint32]map[RealtimeSubscriber]struct{}
 }
 
 // NewManager builds a session manager.
@@ -296,12 +297,19 @@ func (m *Manager) DeliverMessage(channelID uint32, msg *message.Message) {
 	for sess := range m.subscriptions[channelID] {
 		targets = append(targets, sess)
 	}
+	rt := make([]RealtimeSubscriber, 0, len(m.realtimeSubs[channelID]))
+	for s := range m.realtimeSubs[channelID] {
+		rt = append(rt, s)
+	}
 	m.mu.RUnlock()
 
 	for _, sess := range targets {
 		if err := sess.write(sessionv1.MsgType_MESSAGE_EVENT, "", event); err != nil {
 			m.logger.Warn("deliver message event failed", "channel_id", channelID, "error", err)
 		}
+	}
+	for _, s := range rt {
+		s.RealtimeDeliver(channelID, event)
 	}
 }
 

@@ -63,6 +63,7 @@ func registerV1APIRoutes(mux *http.ServeMux, logger *slog.Logger, deps V1HTTPDep
 		})
 	}
 	registerV1RESTRoutes(mux, logger, deps)
+	registerV1WebSocketRoute(mux, logger, deps)
 }
 
 func requireBearerJWT(w http.ResponseWriter, r *http.Request, secret []byte) (*AccessTokenClaims, bool) {
