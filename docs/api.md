@@ -83,6 +83,13 @@ Authorization: Bearer <access_token>
 
 **路由條件**：僅在程序已初始化 `auth.Service`、可解析 JWT 金鑰、且能取得本節點 Peer ID 時註冊；否則此路徑不存在（會由 mux 回 404）。
 
+| 項目 | 說明 |
+|------|------|
+| 方法 | `POST` |
+| 路徑 | `/v1/auth/challenge` |
+| 請求 Header | `Content-Type: application/json`；**不需要** Bearer |
+| 請求 body | 見下表 |
+
 ### 請求 body
 
 | 欄位              | 型別   | 必填 | 說明 |
@@ -114,6 +121,13 @@ Authorization: Bearer <access_token>
 提交客戶端對 challenge payload 的簽名；驗證通過後簽發 JWT 並回傳使用者摘要。
 
 **額外檢查**：請求中的 `node_peer_id` 必須與**當前 HTTP 服務所屬節點**的 Peer ID 一致，否則 `400`。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `POST` |
+| 路徑 | `/v1/auth/verify` |
+| 請求 Header | `Content-Type: application/json`；**不需要** Bearer |
+| 請求 body | 見下表 |
 
 ### 請求 body
 
@@ -154,6 +168,116 @@ Authorization: Bearer <access_token>
 | `400` | JSON/Base64/欄位缺失/`node_peer_id` 不符：見 `error` 字串（如 `nonce must be standard base64`、`node_peer_id does not match this server`） |
 | `401` | 驗證失敗：`error` 為伺服器回傳的錯誤訊息（例如 `challenge expired`、`peer id mismatch`、`invalid challenge signature`、`consume challenge nonce: ...` 等，與 `VerifyChallenge` 一致） |
 | `500` | `token issue failed` 等 |
+
+---
+
+## 資料型別與列舉（v1 JSON）
+
+以下為 HTTP JSON 與 proto `meshserver.session.v1` 對齊之**欄位名**（`json` 標籤，多為 `snake_case`）。數字型列舉在 JSON 中為 **number**。
+
+### 列舉值
+
+| 型別 | 值（number） | 常數名（對照用） |
+|------|----------------|------------------|
+| `Visibility` | `0` / `1` / `2` | `VISIBILITY_UNSPECIFIED` / `PUBLIC` / `PRIVATE` |
+| `ChannelType` | `0` / `1` / `2` | `CHANNEL_TYPE_UNSPECIFIED` / `GROUP`（群組） / `BROADCAST`（廣播頻道） |
+| `MessageType` | `0`…`4` | `UNSPECIFIED` / `TEXT` / `IMAGE` / `FILE` / `SYSTEM` |
+| `MemberRole` | `0`…`4` | `UNSPECIFIED` / `OWNER` / `ADMIN` / `MEMBER` / `SUBSCRIBER` |
+
+### `SpaceSummary`（物件）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `space_id` | number | Space 業務 ID |
+| `name` | string | 名稱 |
+| `avatar_url` | string | 頭像 URL |
+| `description` | string | 描述 |
+| `visibility` | number | 見 `Visibility` |
+| `member_count` | number | 成員數 |
+| `allow_channel_creation` | bool | 是否允許在該 Space 內建立頻道（實際顯示值含全站管理員規則） |
+
+### `ChannelSummary`（物件）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `channel_id` | number | 頻道 ID |
+| `space_id` | number | 所屬 Space ID |
+| `type` | number | 見 `ChannelType` |
+| `name` | string | 名稱 |
+| `description` | string | 描述 |
+| `visibility` | number | 見 `Visibility` |
+| `slow_mode_seconds` | number | 慢速模式秒數 |
+| `auto_delete_after_seconds` | number | 群組自動刪除秒數（0 表示關閉等，依實作） |
+| `last_seq` | number | 目前訊息序號游標 |
+| `member_count` | number | 成員數 |
+| `can_view` | bool | 當前使用者是否可檢視 |
+| `can_send_message` | bool | 是否可發文字 |
+| `can_send_image` | bool | 是否可發圖 |
+| `can_send_file` | bool | 是否可發檔 |
+
+### `SpaceMemberSummary`（物件）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `member_id` | number | 成員記錄 ID（分頁用） |
+| `user_id` | string | 對外使用者 ID |
+| `display_name` | string | 顯示名稱 |
+| `avatar_url` | string | 頭像 |
+| `role` | number | 見 `MemberRole` |
+| `nickname` | string | 暱稱 |
+| `is_muted` | bool | 是否禁言 |
+| `is_banned` | bool | 是否封禁 |
+| `joined_at_ms` | number | 加入時間 Unix 毫秒 |
+| `last_seen_at_ms` | number | 最後活躍毫秒（0 可能表示無） |
+
+### `MediaImage` / `MediaFile`（物件）
+
+`MediaImage`：
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `media_id` | string | 媒體 ID |
+| `blob_id` | string | Blob ID |
+| `sha256` | string | 雜湊 |
+| `url` | string | 可訪問 URL（若已設定 blob 基底） |
+| `width` / `height` | number | 像素（圖） |
+| `mime_type` | string | MIME |
+| `size` | number | 位元組大小 |
+| `inline_data` | string | Base64（JSON 對 `[]byte` 序列化；僅在請求內嵌或部分回應出現） |
+| `original_name` | string | 原始檔名 |
+
+`MediaFile`：
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `media_id` | string | |
+| `blob_id` | string | |
+| `sha256` | string | |
+| `file_name` | string | 檔名（proto 欄位名） |
+| `url` | string | 可訪問 URL |
+| `mime_type` | string | |
+| `size` | number | |
+| `inline_data` | string | Base64（同上） |
+
+### `MessageContent`（物件）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `text` | string | 文字內容 |
+| `images` | array | 元素為 `MediaImage` |
+| `files` | array | 元素為 `MediaFile` |
+
+### `MessageEvent`（物件；sync / WebSocket 推送）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `channel_id` | number | 頻道 ID |
+| `message_id` | string | 訊息 UUID/業務 ID |
+| `seq` | number | 頻道內序號 |
+| `sender_user_id` | string | 發送者對外 `user_id` |
+| `message_type` | number | 見 `MessageType` |
+| `content` | object | `MessageContent`，可為 null |
+| `created_at_ms` | number | 建立時間 Unix 毫秒 |
 
 ---
 
@@ -200,6 +324,13 @@ Authorization: Bearer <access_token>
 
 回傳目前 JWT 對應使用者的資料庫資訊。
 
+| 項目 | 說明 |
+|------|------|
+| 方法 | `GET` |
+| 路徑 | `/v1/me` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填） |
+| 請求 body | 無 |
+
 #### 成功 `200` body
 
 | 欄位 | 型別 | 說明 |
@@ -216,6 +347,7 @@ Authorization: Bearer <access_token>
 
 | HTTP | 說明 |
 |------|------|
+| `401` | 未帶或無效 Bearer |
 | `404` | 使用者不存在 |
 | `500` | `load user failed` |
 
@@ -223,26 +355,118 @@ Authorization: Bearer <access_token>
 
 ### `GET /v1/spaces`
 
+列出當前使用者可見的 Space（`LIST_SPACES_*`）。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `GET` |
+| 路徑 | `/v1/spaces` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填） |
+| 請求 body | 無 |
+
 #### 成功 `200` body
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
-| `spaces` | array | 與 `ListSpacesResp.spaces` 相同元素結構（`SpaceSummary`） |
+| `spaces` | array | 元素為 `SpaceSummary`（欄位見上文「資料型別與列舉」） |
+
+---
+
+### `POST /v1/spaces`
+
+建立新 Space（`CREATE_SPACE_*`）。**僅** `MESHSERVER_DEFAULT_ADMIN_PEER_ID` 對應之 Peer 可建立；否則 **`403`**，`error` 為 `create space permission required`。伺服器建立時會將 `allow_channel_creation` 設為 `true`（body 中的 `allow_channel_creation` 不影響此行為）。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `POST` |
+| 路徑 | `/v1/spaces` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填）；`Content-Type: application/json` |
+| 請求 body | 見下表 |
+
+#### 請求 body（`CreateSpaceReq`）
+
+| 欄位 | 型別 | 必填 | 說明 |
+|------|------|------|------|
+| `name` | string | 是 | Space 名稱 |
+| `description` | string | 否 | 描述 |
+| `visibility` | number | 否 | 見 `Visibility` |
+| `allow_channel_creation` | bool | 否 | 可忽略（伺服器仍設為允許建立） |
+
+#### 成功 `200` body（`CreateSpaceResp`）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+| `space_id` | number | 新建 Space ID |
+| `space` | object | `SpaceSummary` |
+| `message` | string | 如 `created` |
+
+---
+
+### `GET /v1/permissions/create-space`
+
+查詢當前使用者是否可建立 Space（`GET_CREATE_SPACE_PERMISSIONS_*`）。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `GET` |
+| 路徑 | `/v1/permissions/create-space` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填） |
+| 請求 body | 無 |
+
+#### 成功 `200` body（`GetCreateSpacePermissionsResp`）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+| `can_create_space` | bool | 是否為全站管理員（可建 Space） |
+| `message` | string | 如 `ok` |
+
+---
+
+### `GET /v1/spaces/{space_id}/permissions/create-group`
+
+查詢在指定 Space 內建立群組頻道之權限（`GET_CREATE_GROUP_PERMISSIONS_*`）。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `GET` |
+| 路徑 | `/v1/spaces/{space_id}/permissions/create-group` |
+| 路徑參數 | `space_id`（number） |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填） |
+| 請求 body | 無 |
+
+#### 成功 `200` body（`GetCreateGroupPermissionsResp`）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+| `space_id` | number | 與路徑一致 |
+| `space` | object | `SpaceSummary` |
+| `role` | number | 當前使用者在該 Space 的 `MemberRole` |
+| `can_create_group` | bool | 是否可建立群組頻道 |
+| `message` | string | 如 `ok` |
 
 ---
 
 ### `POST /v1/spaces/{space_id}/join`
 
-加入指定 Space（與 `JOIN_SPACE_REQ` 相同，`space_id` 以路徑為準）。無需 body。
+加入指定 Space（`JOIN_SPACE_*`）。
 
-#### 成功 `200` body
+| 項目 | 說明 |
+|------|------|
+| 方法 | `POST` |
+| 路徑 | `/v1/spaces/{space_id}/join` |
+| 路徑參數 | `space_id`（number） |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填） |
+| 請求 body | 無 |
 
-與 `JoinSpaceResp` 對齊：
+#### 成功 `200` body（`JoinSpaceResp`）
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
-| `ok` | bool | 固定 `true` |
-| `space_id` | number | |
+| `ok` | bool | `true` |
+| `space_id` | number | 與路徑一致 |
 | `space` | object | `SpaceSummary` |
 | `message` | string | 如 `joined` |
 
@@ -250,110 +474,452 @@ Authorization: Bearer <access_token>
 
 ### `GET /v1/spaces/{space_id}/members`
 
-列出 Space 成員（與 `LIST_SPACE_MEMBERS_REQ` 相同）。**僅 owner 或 admin** 可呼叫；否則 HTTP **`403`**，`error` 為 `admin role required`。
+列出 Space 成員（`LIST_SPACE_MEMBERS_*`）。**僅 owner 或 admin**；否則 **`403`**，`error` 為 `admin role required`。
 
-#### 查詢參數
+| 項目 | 說明 |
+|------|------|
+| 方法 | `GET` |
+| 路徑 | `/v1/spaces/{space_id}/members` |
+| 路徑參數 | `space_id`（number） |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填） |
+
+#### Query 參數
 
 | 參數 | 型別 | 必填 | 說明 |
 |------|------|------|------|
-| `after_member_id` | number | 否 | 分頁游標（僅回傳大於此 member id 的項目）；預設 `0` |
+| `after_member_id` | number | 否 | 分頁游標；預設 `0` |
 | `limit` | number | 否 | 每頁筆數；`0` 則預設 **20**，最大 **100** |
 
-#### 成功 `200` body
+#### 成功 `200` body（`ListSpaceMembersResp`）
 
-與 `ListSpaceMembersResp` 對齊（`space_id`、`members`、`next_after_member_id`、`has_more`）。
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `space_id` | number | 與路徑一致 |
+| `members` | array | 元素為 `SpaceMemberSummary` |
+| `next_after_member_id` | number | 下一頁游標；無更多時可為 `0` |
+| `has_more` | bool | 是否還有下一頁 |
+
+---
+
+### `PATCH /v1/spaces/{space_id}/members/{target_user_id}/role`
+
+變更成員角色（`ADMIN_SET_SPACE_MEMBER_ROLE_*`）。將目標設為 **owner** 僅現任 **owner** 可執行（否則 **`403`** `owner role required`）；其餘角色變更需要 **owner 或 admin**（否則 **`403`** `admin role required`）。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `PATCH` |
+| 路徑 | `/v1/spaces/{space_id}/members/{target_user_id}/role` |
+| 路徑參數 | `space_id`（number）、`target_user_id`（string，對外 user_id，URL 編碼） |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填）；`Content-Type: application/json` |
+
+#### 請求 body（`AdminSetSpaceMemberRoleReq` 路徑欄位以外）
+
+| 欄位 | 型別 | 必填 | 說明 |
+|------|------|------|------|
+| `role` | number | 是 | `MemberRole` |
+
+#### 成功 `200` body（`AdminSetSpaceMemberRoleResp`）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+| `space_id` | number | |
+| `target_user_id` | string | 與路徑一致 |
+| `role` | number | 設定後的 `MemberRole` |
+| `message` | string | 如 `updated` |
+
+---
+
+### `PUT /v1/spaces/{space_id}/settings/channel_creation`
+
+設定 Space 是否允許成員建立頻道（`ADMIN_SET_SPACE_CHANNEL_CREATION_*`）。需 **owner 或 admin**。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `PUT` |
+| 路徑 | `/v1/spaces/{space_id}/settings/channel_creation` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填）；`Content-Type: application/json` |
+
+#### 請求 body（`AdminSetSpaceChannelCreationReq`）
+
+| 欄位 | 型別 | 必填 | 說明 |
+|------|------|------|------|
+| `allow_channel_creation` | bool | 是 | 是否允許 |
+
+#### 成功 `200` body（`AdminSetSpaceChannelCreationResp`）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+| `space_id` | number | |
+| `allow_channel_creation` | bool | 目前值 |
+| `message` | string | 如 `updated` |
+
+---
+
+### `POST /v1/spaces/{space_id}/invitations`
+
+邀請使用者加入 Space（`INVITE_SPACE_MEMBER_*`）。需 **owner 或 admin**。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `POST` |
+| 路徑 | `/v1/spaces/{space_id}/invitations` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填）；`Content-Type: application/json` |
+
+#### 請求 body（`InviteSpaceMemberReq`）
+
+| 欄位 | 型別 | 必填 | 說明 |
+|------|------|------|------|
+| `target_user_id` | string | 是 | 被邀請者對外 `user_id` |
+
+#### 成功 `200` body（`InviteSpaceMemberResp`）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+| `space_id` | number | |
+| `target_user_id` | string | |
+| `space` | object | `SpaceSummary` |
+| `message` | string | 如 `invited` |
+
+---
+
+### `POST /v1/spaces/{space_id}/kick`
+
+踢出成員（`KICK_SPACE_MEMBER_*`）。需 **owner 或 admin**。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `POST` |
+| 路徑 | `/v1/spaces/{space_id}/kick` |
+| 請求 body | 與邀請相同：`{"target_user_id": string}`（`KickSpaceMemberReq`） |
+
+#### 成功 `200` body（`KickSpaceMemberResp`）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+| `space_id` | number | |
+| `target_user_id` | string | |
+| `space` | object | `SpaceSummary` |
+| `message` | string | 如 `kicked` |
+
+---
+
+### `POST /v1/spaces/{space_id}/ban`
+
+封禁成員（`BAN_SPACE_MEMBER_*`）。需 **owner 或 admin**。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `POST` |
+| 路徑 | `/v1/spaces/{space_id}/ban` |
+| 請求 body | `{"target_user_id": string}`（`BanSpaceMemberReq`） |
+
+#### 成功 `200` body（`BanSpaceMemberResp`）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+| `space_id` | number | |
+| `target_user_id` | string | |
+| `space` | object | `SpaceSummary` |
+| `message` | string | 如 `banned` |
+
+---
+
+### `POST /v1/spaces/{space_id}/unban`
+
+解除封禁（`UNBAN_SPACE_MEMBER_*`）。需 **owner 或 admin**。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `POST` |
+| 路徑 | `/v1/spaces/{space_id}/unban` |
+| 請求 body | `{"target_user_id": string}`（`UnbanSpaceMemberReq`） |
+
+#### 成功 `200` body（`UnbanSpaceMemberResp`）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+| `space_id` | number | |
+| `target_user_id` | string | |
+| `space` | object | `SpaceSummary` |
+| `message` | string | 如 `unbanned` |
 
 ---
 
 ### `GET /v1/spaces/{space_id}/channels`
 
-#### 成功 `200` body
+列出 Space 下頻道（`LIST_CHANNELS_*`）。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `GET` |
+| 路徑 | `/v1/spaces/{space_id}/channels` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填） |
+| 請求 body | 無 |
+
+#### 成功 `200` body（`ListChannelsResp`）
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
-| `space_id` | number | 路徑參數回顯 |
-| `channels` | array | 與 `ListChannelsResp.channels` 相同（`ChannelSummary`） |
+| `space_id` | number | 與路徑一致 |
+| `channels` | array | 元素為 `ChannelSummary` |
+
+---
+
+### `POST /v1/spaces/{space_id}/channels`
+
+建立**廣播**頻道（`CREATE_CHANNEL_*`，`ChannelType_BROADCAST`）。`space_id` 以路徑為準並覆寫 body 中的 `space_id`。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `POST` |
+| 路徑 | `/v1/spaces/{space_id}/channels` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填）；`Content-Type: application/json` |
+
+#### 請求 body（`CreateChannelReq`）
+
+| 欄位 | 型別 | 必填 | 說明 |
+|------|------|------|------|
+| `space_id` | number | 否 | 可省略，以路徑為準 |
+| `name` | string | 是 | 頻道名稱 |
+| `description` | string | 否 | 描述 |
+| `visibility` | number | 否 | `Visibility` |
+| `slow_mode_seconds` | number | 否 | 慢速秒數 |
+
+#### 成功 `200` body（`CreateChannelResp`）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+| `space_id` | number | |
+| `channel_id` | number | 新建頻道 ID |
+| `channel` | object | `ChannelSummary` |
+| `message` | string | 如 `created` |
+
+---
+
+### `POST /v1/spaces/{space_id}/groups`
+
+建立**群組**頻道（`CREATE_GROUP_*`，`ChannelType_GROUP`）。`space_id` 以路徑為準並覆寫 body。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `POST` |
+| 路徑 | `/v1/spaces/{space_id}/groups` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填）；`Content-Type: application/json` |
+
+#### 請求 body（`CreateGroupReq`）
+
+| 欄位 | 型別 | 必填 | 說明 |
+|------|------|------|------|
+| `space_id` | number | 否 | 以路徑為準 |
+| `name` | string | 是 | 群組名稱 |
+| `description` | string | 否 | 描述 |
+| `visibility` | number | 否 | `Visibility` |
+| `slow_mode_seconds` | number | 否 | 慢速秒數 |
+
+#### 成功 `200` body（`CreateGroupResp`）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+| `space_id` | number | |
+| `channel_id` | number | 新建頻道 ID |
+| `channel` | object | `ChannelSummary` |
+| `message` | string | 如 `created` |
 
 ---
 
 ### `POST /v1/channels/{channel_id}/messages`
 
-請求 body 與 `SendMessageReq` 相同，但 **`channel_id` 以路徑為準**（body 若帶 `channel_id` 應與路徑一致；實作以路徑覆寫）。
+發送訊息（`SEND_MESSAGE_*`）。**路徑中的 `channel_id` 會覆寫 body 內 `channel_id`**。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `POST` |
+| 路徑 | `/v1/channels/{channel_id}/messages` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填）；`Content-Type: application/json` |
+| 請求體上限 | **8 MiB** |
+
+#### 請求 body（`SendMessageReq`，`channel_id` 以路徑為準）
 
 | 欄位 | 型別 | 必填 | 說明 |
 |------|------|------|------|
-| `client_msg_id` | string | 否 | 客戶端訊息去重 ID |
-| `message_type` | number | 否 | 與 proto `MessageType` 列舉一致（0=未指定則依內容推斷） |
-| `content` | object | 否 | 與 `MessageContent` 相同：`text`、`images[]`、`files[]`（內嵌位元組欄位為 JSON 陣列形式之數字，與 proto JSON 一致） |
+| `channel_id` | number | 否 | 忽略，以路徑為準 |
+| `client_msg_id` | string | 否 | 客戶端去重 ID |
+| `message_type` | number | 否 | `MessageType`；`0` 時依內容推斷 |
+| `content` | object | 否 | `MessageContent`：`text`、`images[]`（`MediaImage`）、`files[]`（`MediaFile`）；內嵌二進位請用 Base64 字串作為 `inline_data` |
 
-請求體上限 **8 MiB**（含內嵌附件）。
-
-#### 成功 `200` body
-
-與 `SendMessageAck` 語意對齊：
+#### 成功 `200` body（`SendMessageAck`）
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
-| `ok` | bool | 固定 `true` |
+| `ok` | bool | `true` |
 | `channel_id` | number | |
 | `client_msg_id` | string | |
-| `message_id` | string | |
-| `seq` | number | |
-| `server_time_ms` | number | 伺服器處理時間（Unix 毫秒） |
+| `message_id` | string | 伺服器訊息 ID |
+| `seq` | number | 頻道序號 |
+| `server_time_ms` | number | Unix 毫秒 |
 | `message` | string | 如 `stored` |
 
 #### 錯誤
 
-- **`403`**：`forbidden`（與 `ErrForbidden` 一致，例如非成員）
-- **`400`**：驗證或業務錯誤（訊息內容無效等）
-- 其他錯誤多為 **`400`** 並帶 `error` 字串
+| HTTP | 說明 |
+|------|------|
+| `401` | 未授權 |
+| `403` | `forbidden`（非成員等） |
+| `400` | 驗證/業務錯誤，`error` 字串 |
 
 ---
 
 ### `GET /v1/channels/{channel_id}/sync`
 
-查詢參數：
+歷史同步（`SYNC_CHANNEL_*`）。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `GET` |
+| 路徑 | `/v1/channels/{channel_id}/sync` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填） |
+
+#### Query 參數（`SyncChannelReq`）
 
 | 參數 | 型別 | 必填 | 說明 |
 |------|------|------|------|
-| `after_seq` | number | 否 | 僅取得序號大於此值的訊息；預設 `0` |
-| `limit` | number | 否 | 筆數上限；`0` 或未傳則使用伺服器 `default_sync_limit` / 上限邏輯（與 `SyncChannel` 一致） |
+| `after_seq` | number | 否 | 僅取 `seq` 大於此值之訊息；預設 `0` |
+| `limit` | number | 否 | 筆數；`0` 或未傳則用伺服器 `default_sync_limit` 與 `max_sync_limit` |
 
-#### 成功 `200` body
-
-與 `SyncChannelResp` 對齊：
+#### 成功 `200` body（`SyncChannelResp`）
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | `channel_id` | number | |
-| `messages` | array | `MessageEvent` 列表 |
-| `next_after_seq` | number | 下次同步游標 |
-| `has_more` | bool | 是否還有資料 |
+| `messages` | array | 元素為 `MessageEvent`（見「資料型別與列舉」） |
+| `next_after_seq` | number | 下次請求建議帶入之 `after_seq` |
+| `has_more` | bool | 是否還有未拉取資料 |
 
 #### 錯誤
 
-- **`403`**：非頻道成員等
-- **`404`**：資源不存在（若底層回傳 `ErrNotFound`）
+| HTTP | 說明 |
+|------|------|
+| `403` | 非成員等 |
+| `404` | 資源不存在（若底層 `ErrNotFound`） |
+
+---
+
+### `POST /v1/channels/{channel_id}/delivered_ack`
+
+送達確認（`CHANNEL_DELIVER_ACK`）。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `POST` |
+| 路徑 | `/v1/channels/{channel_id}/delivered_ack` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填）；`Content-Type: application/json` |
+
+#### 請求 body（`ChannelDeliverAck`）
+
+| 欄位 | 型別 | 必填 | 說明 |
+|------|------|------|------|
+| `acked_seq` | number | 是 | 已送達之最大 `seq` |
+
+#### 成功 `200` body
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+
+---
+
+### `POST /v1/channels/{channel_id}/read`
+
+更新已讀游標（`CHANNEL_READ_UPDATE`）。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `POST` |
+| 路徑 | `/v1/channels/{channel_id}/read` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填）；`Content-Type: application/json` |
+
+#### 請求 body（`ChannelReadUpdate`）
+
+| 欄位 | 型別 | 必填 | 說明 |
+|------|------|------|------|
+| `last_read_seq` | number | 是 | 已讀至該 `seq` |
+
+#### 成功 `200` body
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+
+---
+
+### `PUT /v1/channels/{channel_id}/settings/auto_delete`
+
+設定群組自動刪除（`ADMIN_SET_GROUP_AUTO_DELETE_*`）。**僅群組（`ChannelType` = GROUP）**；否則 **`400`** `auto delete is only supported for group channels`。需 **Space 之 owner 或 admin**。
+
+| 項目 | 說明 |
+|------|------|
+| 方法 | `PUT` |
+| 路徑 | `/v1/channels/{channel_id}/settings/auto_delete` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填）；`Content-Type: application/json` |
+
+#### 請求 body（`AdminSetGroupAutoDeleteReq`）
+
+| 欄位 | 型別 | 必填 | 說明 |
+|------|------|------|------|
+| `auto_delete_after_seconds` | number | 是 | 秒；`0` 通常表示關閉（依實作） |
+
+#### 成功 `200` body（`AdminSetGroupAutoDeleteResp`）
+
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+| `channel_id` | number | |
+| `auto_delete_after_seconds` | number | 更新後值 |
+| `channel` | object | `ChannelSummary` |
+| `message` | string | 如 `updated` |
 
 ---
 
 ### `GET /v1/media/{media_id}`
 
-下載媒體內容（與 `GET_MEDIA_REQ` / `GET_MEDIA_RESP` 相同）。使用者須對該 `media_id` 關聯之**至少一個頻道**具備可檢視權限，否則 **`403`**。
+下載媒體（`GET_MEDIA_*`）。須對該 `media_id` 所關聯之任一頻道具 **can_view**，否則 **`403`**。
 
-#### 成功 `200` body
+| 項目 | 說明 |
+|------|------|
+| 方法 | `GET` |
+| 路徑 | `/v1/media/{media_id}` |
+| 路徑參數 | `media_id`（string） |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填） |
+| 請求 body | 無 |
 
-與 `GetMediaResp` 對齊：`ok`、`media_id`、`file`（`MediaFile`，含 `inline_data` 為 Base64 編碼之 JSON 字串，與標準 `encoding/json` 對 `[]byte` 序列化一致）、`message`。
+#### 成功 `200` body（`GetMediaResp`）
 
-大檔建議之後可改走 blob HTTP 靜態路徑；目前實作與 libp2p 一併回傳 JSON 內嵌位元組。
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `ok` | bool | `true` |
+| `media_id` | string | |
+| `file` | object | `MediaFile`；`inline_data` 在 JSON 中為 **Base64 字串**（`encoding/json` 序列化 `[]byte`） |
+| `message` | string | 如 `ok` |
 
 ---
 
 ### `POST /v1/media`
 
-以 **`multipart/form-data`** 上傳檔案，寫入 blob 並建立 media 記錄（與訊息附件流程一致）。需 Bearer；受 **`max_upload_bytes` / `MESHSERVER_MAX_UPLOAD_BYTES`** 約束。
+以 **`multipart/form-data`** 上傳檔案。需 Bearer；單檔受 **`max_upload_bytes`** 限制。僅在已註冊 `MediaService` 且 `MaxUploadBytes > 0` 時可用。
 
-僅在程序已注入 `MediaService` 且 `MaxUploadBytes > 0` 時註冊此路由。
+| 項目 | 說明 |
+|------|------|
+| 方法 | `POST` |
+| 路徑 | `/v1/media` |
+| 請求 Header | `Authorization: Bearer <access_token>`（必填）；`Content-Type: multipart/form-data`（含 boundary） |
 
 #### 表單欄位
 
@@ -361,15 +927,15 @@ Authorization: Bearer <access_token>
 |------|------|------|
 | `file` | 是 | 檔案本體 |
 | `kind` | 否 | `image` 或 `file`（預設 `file`） |
-| `original_name` | 否 | 原始檔名；未填則使用上傳檔名 |
-| `mime_type` | 否 | MIME；未填則使用 part 的 `Content-Type` |
+| `original_name` | 否 | 原始檔名；未填則用 part 檔名 |
+| `mime_type` | 否 | 未填則用 part 的 `Content-Type` |
 
 #### 成功 `200` body
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
 | `ok` | bool | `true` |
-| `media_id` | string | 寫入訊息 `content.images[].media_id` / `files[].media_id` 所用 |
+| `media_id` | string | 供 `SendMessage` 引用 |
 | `blob_id` | string | |
 | `sha256` | string | |
 | `mime_type` | string | |
@@ -382,30 +948,12 @@ Authorization: Bearer <access_token>
 
 | HTTP | 說明 |
 |------|------|
-| `413` | 超過單檔上傳上限 |
-| `400` | 缺 `file`、multipart 解析失敗、或 `kind` 非法 |
+| `413` | 超過上傳上限 |
+| `400` | 缺 `file`、multipart 錯誤、`kind` 非法 |
 
 ---
 
-### 其餘 v1 端點（摘要）
-
-以下成功回應 body 皆與對應 proto 訊息一致（欄位見 `session.proto` / 產生之 `*.pb.go` 的 `json` 標籤）。
-
-| 端點 | 說明 |
-|------|------|
-| `POST /v1/spaces` | Body：`CreateSpaceReq`。僅 **`MESHSERVER_DEFAULT_ADMIN_PEER_ID`** 對應之 Peer 可建立；否則 **`403`** `create space permission required`。 |
-| `GET /v1/permissions/create-space` | 回傳 `GetCreateSpacePermissionsResp`（`can_create_space`）。 |
-| `GET /v1/spaces/{space_id}/permissions/create-group` | 回傳 `GetCreateGroupPermissionsResp`。 |
-| `PATCH .../members/{target_user_id}/role` | Body：`{"role": <MemberRole 數值>}`。變更為 owner 僅現任 owner 可執行，否則 **`403`** `owner role required`；需 admin/owner 時不符則 **`403`** `admin role required`。 |
-| `PUT .../settings/channel_creation` | Body：`{"allow_channel_creation": bool}`。需 space admin/owner。 |
-| `PUT /v1/channels/{channel_id}/settings/auto_delete` | Body：`{"auto_delete_after_seconds": number}`。僅 **群組（group）** 頻道；否則 **`400`** `auto delete is only supported for group channels`。 |
-| `POST .../invitations`、`kick`、`ban`、`unban` | Body：`{"target_user_id": "<對外 user_id>"}`。需 admin/owner（除另有規則）。 |
-| `POST .../groups` | Body：`CreateGroupReq`（`space_id` 以路徑為準並覆寫 body）。 |
-| `POST .../channels`（建立） | Body：`CreateChannelReq`（廣播頻道，`space_id` 以路徑為準）。 |
-| `POST .../delivered_ack` | Body：`{"acked_seq": number}`。成功 `200`：`{"ok": true}`。 |
-| `POST .../read` | Body：`{"last_read_seq": number}`。成功 `200`：`{"ok": true}`。 |
-
-#### 權限相關 `error` 字串（常見）
+### 權限相關 `error` 字串（常見）
 
 | 字串 | 典型 HTTP |
 |------|-----------|
@@ -418,66 +966,106 @@ Authorization: Bearer <access_token>
 
 ## WebSocket `GET /v1/ws`
 
-與 libp2p 上 `MESSAGE_EVENT` 使用**同一套** `toMessageEvent` 產物：推送的 JSON 內含完整 **`MessageEvent`**（文字、圖片/檔案 metadata、`url` 等），客戶端可直接解析，**無需再呼叫 sync** 取該則訊息。
+與 libp2p 上 `MESSAGE_EVENT` 使用**同一套** `toMessageEvent`：`event` 物件欄位與 **`MessageEvent`**（見「資料型別與列舉」）及 **`GET /v1/channels/{channel_id}/sync`** 之 `messages[]` 元素一致，客戶端可直接解析，無需再 sync 該則。
 
-### 連線與認證
+| 項目 | 說明 |
+|------|------|
+| 方法 | `GET` |
+| 路徑 | `/v1/ws` |
+| 協議 | 一般站點為 **`wss://`**；升級 WebSocket |
+| 認證（擇一） | ① Header `Authorization: Bearer <access_token>` ② Query `?access_token=<token>` |
+| 升級失敗 | **401**，body：`{"error":"authentication required"}`（不完成握手） |
 
-- 使用 **`GET /v1/ws`**，Upgrade WebSocket。
-- JWT 擇一即可：
-  - 標頭 **`Authorization: Bearer <access_token>`**（部分代理支援 WS 帶標頭），或
-  - 查詢參數 **`access_token=<token>`**（瀏覽器原生 `WebSocket` 無法自訂標頭時請用此方式）。
+### 客戶端 → 伺服器（JSON 文字訊息）
 
-升級前校驗失敗回 **401** + JSON `{"error":"authentication required"}`（不完成 WebSocket 握手）。
+每則訊息為 UTF-8 JSON 物件，單次讀取大小上限約 **64 KiB**。
 
-### 客戶端 → 伺服器（文字訊息，JSON）
+#### 請求欄位（共用）
 
-| `action` | 欄位 | 說明 |
-|----------|------|------|
-| `subscribe` | `channel_id`（number） | 訂閱頻道推送；須為該頻道成員，否則 `{"type":"error","error":"not a channel member"}` |
-| `unsubscribe` | `channel_id` | 取消訂閱 |
-| `ping` | — | 伺服器回 `{"type":"pong","message":"ok"}` |
+| 欄位 | 型別 | 必填 | 說明 |
+|------|------|------|------|
+| `action` | string | 是 | `subscribe` / `unsubscribe` / `ping`（大小寫不敏感） |
+| `channel_id` | number | 視 action | `subscribe` / `unsubscribe` 必填且非 0 |
 
-範例：
+| `action` | 行為 |
+|----------|------|
+| `subscribe` | 訂閱頻道；須為成員，否則見下行「錯誤」 |
+| `unsubscribe` | 取消訂閱 |
+| `ping` | 心跳，見下行「控制回應」 |
 
-```json
-{"action":"subscribe","channel_id":12345}
-```
+### 伺服器 → 客戶端
 
-成功訂閱後回：`{"type":"subscribed","channel_id":12345,"message":"ok"}`（欄位以實作為準）。
+#### 控制與確認（非新訊息）
 
-### 伺服器 → 客戶端（新訊息）
+| `type` | 其他欄位 | 說明 |
+|--------|----------|------|
+| `pong` | `message`（string，如 `ok`） | 回應 `action: ping` |
+| `subscribed` | `channel_id`、`message` | 訂閱成功 |
+| `unsubscribed` | `channel_id`、`message` | 取消訂閱成功 |
+| `error` | `error`（string） | 業務或格式錯誤（見下行） |
 
-有新訊息時推送：
+`type` 為 `error` 時，`error` 欄位可能為：`invalid json`、`channel_id required`、`not a channel member`、`unknown action`。
 
-```json
-{
-  "type": "message_event",
-  "channel_id": 12345,
-  "event": { ... 與 proto MessageEvent / sync 中 messages[] 元素相同 ... }
-}
-```
+#### 新訊息（`message_event`）
 
-`event` 內含 `channel_id`、`message_id`、`seq`、`sender_user_id`、`message_type`、`content`（含 `text`、`images`、`files` 與 URL）、`created_at_ms` 等，與 **`GET /v1/channels/{channel_id}/sync`** 回傳的訊息物件一致。
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `type` | string | 固定 `message_event` |
+| `channel_id` | number | 頻道 ID |
+| `event` | object | 完整 **`MessageEvent`**（`channel_id`、`message_id`、`seq`、`sender_user_id`、`message_type`、`content`、`created_at_ms`） |
 
 ### 其它說明
 
-- 伺服器會定期發 **WebSocket Ping**；客戶端需正常回 **Pong**（瀏覽器通常自動處理）。
-- 若客戶端處理過慢，內部發送緩衝滿時可能丟棄事件並寫 log（應盡快處理 `message_event` 或斷線重連）。
-- 實作：`internal/api/ws.go`、`internal/session/realtime.go`；與 libp2p 共用 `DeliverMessage` 廣播。
+- 伺服器會定期發送 **WebSocket Ping** 幀；客戶端應回 **Pong**（瀏覽器通常自動處理）。
+- 發送緩衝滿時可能丟棄 `message_event` 並寫 log。
+- 實作：`internal/api/ws.go`、`internal/session/realtime.go`。
 
 ---
 
 ## 其他內建路由（非 v1 auth）
 
-以下路由由同一 HTTP 伺服器提供，供運維或除錯使用。
+以下路由**不需要** Bearer（除非另有說明）。
 
-| 方法 | 路徑 | 說明 |
-|------|------|------|
-| GET | `/healthz` | 存活探測；`200` 時 body 含 `status`、`time`（RFC3339Nano） |
-| GET | `/readyz` | 就緒探測；未就緒時 `503` 與 `{"status":"not_ready"}` |
-| GET | `/version` | 回傳 `version` 字串 |
-| GET | `/debug/config` | 僅當 `enable_debug_config` 為真且已設定快照回呼時；回傳設定快照 JSON |
-| GET | `/blobs/*` | 僅當 `serve_blobs_over_http` 等條件滿足時；靜態檔案服務 |
+### `GET /healthz`
+
+| 項目 | 說明 |
+|------|------|
+| 請求 | 無 body |
+| **200** body | `status`（string，如 `ok`）、`time`（string，RFC3339Nano，UTC） |
+
+### `GET /readyz`
+
+| 項目 | 說明 |
+|------|------|
+| 請求 | 無 body |
+| **200** body | `status`（string，如 `ready`） |
+| **503** body | `status`（string，如 `not_ready`） |
+
+### `GET /version`
+
+| 項目 | 說明 |
+|------|------|
+| 請求 | 無 body |
+| **200** body | `version`（string，版本字串或 `unknown`） |
+
+### `GET /debug/config`
+
+| 項目 | 說明 |
+|------|------|
+| 條件 | 設定 `enable_debug_config` 為真且伺服器已註冊設定快照 |
+| 請求 | 無 body |
+| **200** body | 設定物件（結構同執行時 `Config` 快照，欄位依版本而定） |
+| 未啟用 | 路由可能未註冊（**404**） |
+
+### `GET /blobs/{相對路徑}`
+
+| 項目 | 說明 |
+|------|------|
+| 條件 | `serve_blobs_over_http` 等為真且已設定 blob 根目錄 |
+| 請求 | 路徑為 `/blobs/` 前綴後之檔案相對路徑；**非 JSON**，回傳檔案內容 |
+| **200** | 檔案位元組，`Content-Type` 依檔案 |
+| **403** | 路徑越權 |
+| **404** | 檔案不存在 |
 
 ---
 
