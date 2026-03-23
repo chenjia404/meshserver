@@ -18,6 +18,7 @@ import (
 	"meshserver/internal/auth"
 	"meshserver/internal/config"
 	"meshserver/internal/db"
+	"meshserver/internal/ipfsnode"
 	meshlibp2p "meshserver/internal/libp2p"
 	"meshserver/internal/logx"
 	"meshserver/internal/media"
@@ -37,6 +38,7 @@ type App struct {
 
 	db      *sqlx.DB
 	node    *meshlibp2p.Node
+	ipfsEmb *ipfsnode.EmbeddedIPFS
 	session *session.Manager
 
 	readyMu sync.RWMutex
@@ -83,6 +85,14 @@ func (a *App) Start(ctx context.Context) error {
 	}
 	a.node = node
 
+	if a.cfg.IPFS.Enabled {
+		emb, err := ipfsnode.NewEmbeddedIPFS(ctx, node.Host(), node.Routing(), a.cfg.IPFSBaseDir(), a.cfg.IPFS)
+		if err != nil {
+			return fmt.Errorf("init embedded ipfs: %w", err)
+		}
+		a.ipfsEmb = emb
+	}
+
 	nodeRecord, err := store.Upsert(ctx, repository.NodeRecord{
 		PeerID:      node.PeerID(),
 		Name:        a.cfg.NodeName,
@@ -117,6 +127,7 @@ func (a *App) Start(ctx context.Context) error {
 		ConfigSnapshot:  func() any { return a.cfg },
 		BlobRoot:        a.cfg.BlobRoot,
 		ServeBlobRoutes: a.cfg.ServeBlobsOverHTTP,
+		EmbeddedIPFS:    a.ipfsEmb,
 	}, api.AuthHTTPDeps{
 		Service: authService,
 		NodePeerID: func() string {
@@ -191,6 +202,11 @@ func (a *App) Shutdown(ctx context.Context) error {
 			errs = append(errs, fmt.Errorf("shutdown http server: %w", err))
 		}
 	}
+	if a.ipfsEmb != nil {
+		if err := a.ipfsEmb.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close embedded ipfs: %w", err))
+		}
+	}
 	if a.node != nil {
 		if err := a.node.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("close libp2p node: %w", err))
@@ -227,6 +243,9 @@ func (a *App) ensureDirs() error {
 		a.cfg.BlobRoot,
 		a.cfg.LogDir,
 		filepath.Dir(a.cfg.NodeKeyPath),
+	}
+	if a.cfg.IPFS.Enabled {
+		dirs = append(dirs, a.cfg.IPFSBaseDir())
 	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0o755); err != nil {

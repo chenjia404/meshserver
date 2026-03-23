@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"meshserver/internal/config"
+	"meshserver/internal/ipfsnode"
 )
 
 // StatusHooks provides readiness and version hooks for the management server.
@@ -24,6 +25,8 @@ type StatusHooks struct {
 	ConfigSnapshot  func() any
 	BlobRoot        string
 	ServeBlobRoutes bool
+	// EmbeddedIPFS 可選；啟用時註冊 /ipfs/ 與 /api/ipfs/*（見 ipfs.md）。
+	EmbeddedIPFS *ipfsnode.EmbeddedIPFS
 }
 
 // NewHTTPServer builds the lightweight management HTTP server.
@@ -31,6 +34,7 @@ func NewHTTPServer(cfg *config.Config, logger *slog.Logger, hooks StatusHooks, a
 	mux := http.NewServeMux()
 	registerV1AuthRoutes(mux, logger, cfg, authDeps)
 	registerV1APIRoutes(mux, logger, v1Deps)
+	registerIPFSRoutes(mux, logger, hooks.EmbeddedIPFS)
 
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
