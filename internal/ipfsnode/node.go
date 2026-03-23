@@ -31,10 +31,10 @@ import (
 var ErrNotImplemented = errors.New("not implemented")
 
 // EmbeddedIPFS 綁定共享 libp2p host 的 IPFS 子系統。
+// 讀取（閘道、Cat、Stat）僅查本地 blockstore；bitswap 僅用於向對等端提供本機已有區塊，不向網路拉取缺失 CID。
 type EmbeddedIPFS struct {
 	svc             *service
 	closeDS         func() error
-	bswap           *bitswap.Bitswap
 	gw              http.Handler
 	maxUploadBytes  int64
 	gatewayEnabled  bool
@@ -120,8 +120,8 @@ func (e *EmbeddedIPFS) RawLeaves() bool {
 // Close 釋放 bitswap 與本地 datastore。
 func (e *EmbeddedIPFS) Close() error {
 	var errs []error
-	if e.bswap != nil {
-		errs = append(errs, e.bswap.Close())
+	if e.svc != nil && e.svc.exch != nil {
+		errs = append(errs, e.svc.exch.Close())
 	}
 	if e.closeDS != nil {
 		errs = append(errs, e.closeDS())
@@ -130,13 +130,13 @@ func (e *EmbeddedIPFS) Close() error {
 }
 
 type service struct {
-	cfg   config.IPFSConfig
-	rt    routing.Routing
-	bs    blockstore.Blockstore
-	bswap *bitswap.Bitswap
-	bsvc  blockservice.BlockService
-	dag   ipld.DAGService
-	pins  *ipfspin.FileStore
+	cfg  config.IPFSConfig
+	rt   routing.Routing
+	bs   blockstore.Blockstore
+	exch *serveLocalExchange
+	bsvc blockservice.BlockService
+	dag  ipld.DAGService
+	pins *ipfspin.FileStore
 }
 
 // NewEmbeddedIPFS 使用既有 host 與 routing（DHT）建立嵌入式 IPFS；baseIPFSDir 通常為 $DataDir/ipfs。
@@ -151,8 +151,10 @@ func NewEmbeddedIPFS(ctx context.Context, h host.Host, rt routing.Routing, baseI
 	}
 	bs := ipfsstore.NewBlockstore(ds)
 	net := bsnet.NewFromIpfsHost(h)
-	bswapEx := bitswap.New(ctx, net, rt, bs)
-	bsvc := blockservice.New(bs, bswapEx)
+	// providerFinder=nil：bitswap client 不向 DHT 查 provider；讀取仍見 serveLocalExchange，不經 bitswap 拉塊。
+	bswapEx := bitswap.New(ctx, net, nil, bs)
+	exch := newServeLocalExchange(bs, bswapEx)
+	bsvc := blockservice.New(bs, exch)
 	dag := merkledag.NewDAGService(bsvc)
 
 	pinsPath := filepath.Join(baseIPFSDir, "pins.json")
@@ -172,18 +174,17 @@ func NewEmbeddedIPFS(ctx context.Context, h host.Host, rt routing.Routing, baseI
 	}
 
 	svc := &service{
-		cfg:   cfg,
-		rt:    rt,
-		bs:    bs,
-		bswap: bswapEx,
-		bsvc:  bsvc,
-		dag:   dag,
-		pins:  pinStore,
+		cfg:  cfg,
+		rt:   rt,
+		bs:   bs,
+		exch: exch,
+		bsvc: bsvc,
+		dag:  dag,
+		pins: pinStore,
 	}
 	return &EmbeddedIPFS{
 		svc:             svc,
 		closeDS:         closeDS,
-		bswap:           bswapEx,
 		gw:              gw,
 		maxUploadBytes:  cfg.MaxUploadBytes,
 		gatewayEnabled:  cfg.GatewayEnabled,
