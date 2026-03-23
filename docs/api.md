@@ -1,6 +1,6 @@
 # meshserver HTTP API
 
-本文件描述管理用 HTTP 服務的 JSON API。監聽位址由設定 `http_listen_addr` / 環境變數 `MESHSERVER_HTTP_LISTEN_ADDR` 決定（預設見 `internal/config`）。
+本文件描述管理用 HTTP 服務的 JSON API。一般都是配置一个https的网站域名，所有请求路径都基于这个域名，WebSocket用wss协议。
 
 除非另有說明，請求與回應皆為 **`Content-Type: application/json`**，UTF-8 編碼。
 
