@@ -112,6 +112,7 @@ func (a *App) Start(ctx context.Context) error {
 	mediaService := service.NewMediaService(blobService, store)
 	directoryService := service.NewDirectoryService(store, store)
 	messagingService := service.NewMessagingService(a.cfg, store, store, store, mediaService)
+	directMessaging := service.NewDirectMessagingService(a.cfg, store, store)
 	authService := auth.NewService(a.cfg, store, store, a.logger)
 
 	jwtSecret, err := api.ResolveHTTPJWTSecret(a.cfg)
@@ -119,7 +120,7 @@ func (a *App) Start(ctx context.Context) error {
 		return err
 	}
 
-	a.session = session.NewManager(a.logger, authService, store, store, directoryService, messagingService, mediaService, store, store, node.PeerID, nodeRecord.ID, a.cfg.BlobURLBase, a.cfg.DefaultAdminPeerID)
+	a.session = session.NewManager(a.logger, authService, store, store, directoryService, messagingService, mediaService, store, store, directMessaging, node.PeerID, nodeRecord.ID, a.cfg.BlobURLBase, a.cfg.DefaultAdminPeerID)
 
 	a.httpServer = api.NewHTTPServer(a.cfg, a.logger, api.StatusHooks{
 		IsReady:         a.IsReady,

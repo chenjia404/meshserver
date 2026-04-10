@@ -74,6 +74,20 @@ enum MsgType {
   GET_MEDIA_RESP = 64;
   ADMIN_SET_GROUP_AUTO_DELETE_REQ = 65;
   ADMIN_SET_GROUP_AUTO_DELETE_RESP = 66;
+
+  // 中心化私聊（1:1）
+  OPEN_DIRECT_CONVERSATION_REQ = 67;
+  OPEN_DIRECT_CONVERSATION_RESP = 68;
+  LIST_DIRECT_CONVERSATIONS_REQ = 69;
+  LIST_DIRECT_CONVERSATIONS_RESP = 70;
+  SEND_DIRECT_MESSAGE_REQ = 71;
+  SEND_DIRECT_MESSAGE_ACK = 72;
+  DIRECT_MESSAGE_EVENT = 73;
+  ACK_DIRECT_MESSAGE_REQ = 74;
+  ACK_DIRECT_MESSAGE_RESP = 75;
+  DIRECT_PEER_ACK_EVENT = 76;
+  SYNC_DIRECT_MESSAGES_REQ = 77;
+  SYNC_DIRECT_MESSAGES_RESP = 78;
 }
 
 enum Visibility {
@@ -499,4 +513,94 @@ message AdminSetGroupAutoDeleteResp {
   uint32 auto_delete_after_seconds = 3;
   ChannelSummary channel = 4;
   string message = 5;
+}
+
+// ---------- 中心化私聊 ----------
+
+message OpenDirectConversationReq {
+  // 對端使用者外部 ID（與 AuthResult.user_id 同形）
+  string peer_user_id = 1;
+}
+
+message OpenDirectConversationResp {
+  bool ok = 1;
+  string conversation_id = 2;
+  string peer_user_id = 3;
+  uint64 last_seq = 4;
+  string message = 5;
+}
+
+message DirectConversationSummary {
+  string conversation_id = 1;
+  string peer_user_id = 2;
+  string peer_display_name = 3;
+  uint64 last_seq = 4;
+  uint64 last_message_at_ms = 5;
+}
+
+message ListDirectConversationsReq {}
+
+message ListDirectConversationsResp {
+  repeated DirectConversationSummary conversations = 1;
+}
+
+message SendDirectMessageReq {
+  // 若為空則必須提供 to_user_id，由服務端解析會話
+  string conversation_id = 1;
+  string to_user_id = 2;
+  string client_msg_id = 3;
+  MessageType message_type = 4;
+  string text = 5;
+}
+
+message SendDirectMessageAck {
+  bool ok = 1;
+  string conversation_id = 2;
+  string client_msg_id = 3;
+  string message_id = 4;
+  uint64 seq = 5;
+  uint64 server_time_ms = 6;
+  string message = 7;
+}
+
+message DirectMessageEvent {
+  string conversation_id = 1;
+  string message_id = 2;
+  uint64 seq = 3;
+  string from_user_id = 4;
+  string to_user_id = 5;
+  MessageType message_type = 6;
+  string text = 7;
+  uint64 created_at_ms = 8;
+}
+
+message AckDirectMessageReq {
+  string message_id = 1;
+}
+
+message AckDirectMessageResp {
+  bool ok = 1;
+  string message_id = 2;
+  string message = 3;
+}
+
+message DirectPeerAckEvent {
+  string conversation_id = 1;
+  string message_id = 2;
+  uint64 acked_at_ms = 3;
+  // 確認收訊的一方（接收者）外部 user_id
+  string peer_user_id = 4;
+}
+
+message SyncDirectMessagesReq {
+  string conversation_id = 1;
+  uint64 after_seq = 2;
+  uint32 limit = 3;
+}
+
+message SyncDirectMessagesResp {
+  string conversation_id = 1;
+  repeated DirectMessageEvent messages = 2;
+  uint64 next_after_seq = 3;
+  bool has_more = 4;
 }

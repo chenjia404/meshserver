@@ -13,6 +13,8 @@ import (
 var (
 	// ErrNotFound is returned when the requested row does not exist.
 	ErrNotFound = errors.New("repository: not found")
+	// ErrDirectChatForbidden is returned when the caller is not a participant in a DM.
+	ErrDirectChatForbidden = errors.New("repository: direct chat forbidden")
 )
 
 // User is the repository DTO for application users.
@@ -225,4 +227,61 @@ type NodeRepository interface {
 
 // BootstrapRepository seeds demo data and default memberships.
 type BootstrapRepository interface {
+}
+
+// DirectConversation is a 1:1 chat bucket (canonical user_low_id < user_high_id).
+type DirectConversation struct {
+	ID              uint64
+	ConversationID  string
+	UserLowID       uint64
+	UserHighID      uint64
+	LastSeq         uint64
+	LastMessageAtMs uint64
+}
+
+// DirectConversationListItem is one row for LIST_DIRECT_CONVERSATIONS.
+type DirectConversationListItem struct {
+	ConversationID  string
+	PeerUserID      string
+	PeerDisplayName string
+	LastSeq         uint64
+	LastMessageAtMs uint64
+}
+
+// DirectMessage is a persisted DM row.
+type DirectMessage struct {
+	MessageID           string
+	ConversationID      string
+	Seq                 uint64
+	SenderUserID        uint64
+	RecipientUserID     uint64
+	SenderExternalID    string
+	RecipientExternalID string
+	ClientMsgID         string
+	MessageType         message.Type
+	Text                string
+	CreatedAtMs         uint64
+	RecipientAckedAtMs  *uint64
+}
+
+// CreateDirectMessageInput is used to insert a new DM after idempotency checks.
+type CreateDirectMessageInput struct {
+	ConversationID  string
+	SenderUserID    uint64
+	RecipientUserID uint64
+	ClientMsgID     string
+	MessageType     message.Type
+	Text            string
+}
+
+// DirectChatRepository stores server-mediated direct messages (MySQL).
+type DirectChatRepository interface {
+	GetOrCreateConversation(ctx context.Context, userAID, userBID uint64) (*DirectConversation, error)
+	GetConversationByExternalID(ctx context.Context, conversationID string) (*DirectConversation, error)
+	ListConversationsForUser(ctx context.Context, userID uint64) ([]DirectConversationListItem, error)
+	CreateDirectMessage(ctx context.Context, in CreateDirectMessageInput) (*DirectMessage, error)
+	GetDirectMessageByClientMsgID(ctx context.Context, conversationID string, senderUserID uint64, clientMsgID string) (*DirectMessage, error)
+	GetDirectMessageByMessageID(ctx context.Context, messageID string) (*DirectMessage, error)
+	AckDirectMessage(ctx context.Context, messageID string, recipientUserID uint64, ackedAtMs uint64) (alreadyAcked bool, senderUserID uint64, conversationID string, err error)
+	ListPendingDirectMessages(ctx context.Context, conversationID string, recipientUserID uint64, afterSeq uint64, limit uint32) ([]*DirectMessage, uint64, bool, error)
 }

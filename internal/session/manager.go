@@ -54,11 +54,13 @@ type Manager struct {
 	mu                 sync.RWMutex
 	subscriptions      map[uint32]map[*ConnSession]struct{}
 	realtimeSubs       map[uint32]map[RealtimeSubscriber]struct{}
+	directMessaging    service.DirectMessagingService
+	directSessions     map[uint64]map[*ConnSession]struct{}
 }
 
 // NewManager builds a session manager.
 // globalAdminPeerID is MESHSERVER_DEFAULT_ADMIN_PEER_ID: only this libp2p peer may create spaces (empty disables creation for everyone).
-func NewManager(logger *slog.Logger, authService *auth.Service, users repository.UserRepository, spaces repository.SpaceRepository, directory service.DirectoryService, messaging service.MessagingService, media service.MediaService, messages repository.MessageRepository, channels repository.ChannelRepository, nodePeerID func() string, nodeID uint64, blobURLBase string, globalAdminPeerID string) *Manager {
+func NewManager(logger *slog.Logger, authService *auth.Service, users repository.UserRepository, spaces repository.SpaceRepository, directory service.DirectoryService, messaging service.MessagingService, media service.MediaService, messages repository.MessageRepository, channels repository.ChannelRepository, directMessaging service.DirectMessagingService, nodePeerID func() string, nodeID uint64, blobURLBase string, globalAdminPeerID string) *Manager {
 	return &Manager{
 		logger:            logger,
 		authService:       authService,
@@ -69,11 +71,13 @@ func NewManager(logger *slog.Logger, authService *auth.Service, users repository
 		media:             media,
 		messages:          messages,
 		channels:          channels,
+		directMessaging:   directMessaging,
 		nodePeerID:        nodePeerID,
 		nodeID:              nodeID,
 		blobURLBase:         blobURLBase,
 		globalAdminPeerID:   trimPeerIDForCompare(globalAdminPeerID),
 		subscriptions:       make(map[uint32]map[*ConnSession]struct{}),
+		directSessions:    make(map[uint64]map[*ConnSession]struct{}),
 	}
 }
 
@@ -355,6 +359,7 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 		if err != nil {
 			return err
 		}
+		m.registerDirectUserSession(sess)
 		return sess.write(sessionv1.MsgType_AUTH_RESULT, env.RequestId, &sessionv1.AuthResult{
 			Ok:          true,
 			SessionId:   sess.authResult.SessionID,
@@ -883,6 +888,84 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 			NextAfterSeq: nextAfterSeq,
 			HasMore:      hasMore,
 		})
+	case sessionv1.MsgType_OPEN_DIRECT_CONVERSATION_REQ:
+		if m.directMessaging == nil {
+			return fmt.Errorf("direct messaging not available")
+		}
+		var req sessionv1.OpenDirectConversationReq
+		if err := protocol.UnmarshalBody(env.Body, &req); err != nil {
+			return err
+		}
+		resp, err := m.directMessaging.OpenConversation(ctx, sess.authResult.User.ID, req.PeerUserId)
+		if err != nil {
+			return err
+		}
+		return sess.write(sessionv1.MsgType_OPEN_DIRECT_CONVERSATION_RESP, env.RequestId, resp)
+	case sessionv1.MsgType_LIST_DIRECT_CONVERSATIONS_REQ:
+		if m.directMessaging == nil {
+			return fmt.Errorf("direct messaging not available")
+		}
+		var req sessionv1.ListDirectConversationsReq
+		if err := protocol.UnmarshalBody(env.Body, &req); err != nil {
+			return err
+		}
+		_ = req
+		resp, err := m.directMessaging.ListConversations(ctx, sess.authResult.User.ID)
+		if err != nil {
+			return err
+		}
+		return sess.write(sessionv1.MsgType_LIST_DIRECT_CONVERSATIONS_RESP, env.RequestId, resp)
+	case sessionv1.MsgType_SEND_DIRECT_MESSAGE_REQ:
+		if m.directMessaging == nil {
+			return fmt.Errorf("direct messaging not available")
+		}
+		var req sessionv1.SendDirectMessageReq
+		if err := protocol.UnmarshalBody(env.Body, &req); err != nil {
+			return err
+		}
+		ack, ev, recvID, err := m.directMessaging.SendDirectMessage(ctx, sess.authResult.User.ID, &req)
+		if err != nil {
+			return err
+		}
+		if err := sess.write(sessionv1.MsgType_SEND_DIRECT_MESSAGE_ACK, env.RequestId, ack); err != nil {
+			return err
+		}
+		if ev != nil && recvID != 0 {
+			m.deliverDirectMessageToUser(recvID, ev)
+		}
+		return nil
+	case sessionv1.MsgType_ACK_DIRECT_MESSAGE_REQ:
+		if m.directMessaging == nil {
+			return fmt.Errorf("direct messaging not available")
+		}
+		var req sessionv1.AckDirectMessageReq
+		if err := protocol.UnmarshalBody(env.Body, &req); err != nil {
+			return err
+		}
+		ackResp, peerEv, senderUID, err := m.directMessaging.AckDirectMessage(ctx, sess.authResult.User.ID, &req)
+		if err != nil {
+			return err
+		}
+		if err := sess.write(sessionv1.MsgType_ACK_DIRECT_MESSAGE_RESP, env.RequestId, ackResp); err != nil {
+			return err
+		}
+		if peerEv != nil && senderUID != 0 {
+			m.deliverDirectPeerAckToUser(senderUID, peerEv)
+		}
+		return nil
+	case sessionv1.MsgType_SYNC_DIRECT_MESSAGES_REQ:
+		if m.directMessaging == nil {
+			return fmt.Errorf("direct messaging not available")
+		}
+		var req sessionv1.SyncDirectMessagesReq
+		if err := protocol.UnmarshalBody(env.Body, &req); err != nil {
+			return err
+		}
+		resp, err := m.directMessaging.SyncDirectMessages(ctx, sess.authResult.User.ID, &req)
+		if err != nil {
+			return err
+		}
+		return sess.write(sessionv1.MsgType_SYNC_DIRECT_MESSAGES_RESP, env.RequestId, resp)
 	case sessionv1.MsgType_GET_MEDIA_REQ:
 		var req sessionv1.GetMediaReq
 		if err := protocol.UnmarshalBody(env.Body, &req); err != nil {
@@ -939,10 +1022,69 @@ func (m *Manager) dispatch(ctx context.Context, sess *ConnSession, env *sessionv
 func (m *Manager) unregisterSession(sess *ConnSession) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if sess.authResult != nil && sess.authResult.User != nil {
+		uid := sess.authResult.User.ID
+		if m.directSessions != nil {
+			if subs, ok := m.directSessions[uid]; ok {
+				delete(subs, sess)
+				if len(subs) == 0 {
+					delete(m.directSessions, uid)
+				}
+			}
+		}
+	}
 	for channelID := range sess.subscribed {
 		delete(m.subscriptions[channelID], sess)
 		if len(m.subscriptions[channelID]) == 0 {
 			delete(m.subscriptions, channelID)
+		}
+	}
+}
+
+func (m *Manager) registerDirectUserSession(sess *ConnSession) {
+	if sess.authResult == nil || sess.authResult.User == nil {
+		return
+	}
+	uid := sess.authResult.User.ID
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.directSessions == nil {
+		m.directSessions = make(map[uint64]map[*ConnSession]struct{})
+	}
+	if m.directSessions[uid] == nil {
+		m.directSessions[uid] = make(map[*ConnSession]struct{})
+	}
+	m.directSessions[uid][sess] = struct{}{}
+}
+
+func (m *Manager) deliverDirectMessageToUser(userID uint64, ev *sessionv1.DirectMessageEvent) {
+	m.mu.RLock()
+	var targets []*ConnSession
+	if m.directSessions != nil {
+		for s := range m.directSessions[userID] {
+			targets = append(targets, s)
+		}
+	}
+	m.mu.RUnlock()
+	for _, s := range targets {
+		if err := s.write(sessionv1.MsgType_DIRECT_MESSAGE_EVENT, "", ev); err != nil {
+			m.logger.Warn("deliver direct message event failed", "user_id", userID, "error", err)
+		}
+	}
+}
+
+func (m *Manager) deliverDirectPeerAckToUser(userID uint64, ev *sessionv1.DirectPeerAckEvent) {
+	m.mu.RLock()
+	var targets []*ConnSession
+	if m.directSessions != nil {
+		for s := range m.directSessions[userID] {
+			targets = append(targets, s)
+		}
+	}
+	m.mu.RUnlock()
+	for _, s := range targets {
+		if err := s.write(sessionv1.MsgType_DIRECT_PEER_ACK_EVENT, "", ev); err != nil {
+			m.logger.Warn("deliver direct peer ack failed", "user_id", userID, "error", err)
 		}
 	}
 }
